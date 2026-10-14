@@ -41,6 +41,38 @@ Click **Settings** in the GUI:
 
 Stop GLTS, download the latest GitHub ZIP, and copy its source files into your existing GLTS folder. Keep `.venv`, `.local`, and `models` so your dependencies, settings, and language packs are retained. Launch GLTS again and refresh the browser (Ctrl+F5).
 
+## Sana’ani Arabic and local language models
+
+Choose **Sana’ani Arabic (Yemen)** as the source language.
+
+### Audio
+
+In Settings, accept the **CC BY-NC-SA 4.0** noncommercial model license and click **Download Sana’ani speech pack**. Keep GLTS running during preparation. The optional [Yemeni speech model by Mansoor Saleh](https://huggingface.co/mansoorSaleh/whisper-yemeni) covers several Yemeni dialects including Sana’ani. GLTS pins its revision, downloads safetensors (about 1 GB), converts locally to int8, and retains its attribution/model card in `models/whisper-yemeni`. Allow at least 4 GB free disk for preparation. It operates offline after installation, on CPU or CUDA.
+
+The provider's model card and published model configuration disagree about the base-model size. Treat it as experimental; provider accuracy claims have not been independently verified. This implementation has been checked for model conversion, local loading and offline inference, not Sana’ani transcription accuracy on real recordings.
+
+The speech pack transcribes audio, not written text. With **Standard language packs**, its Arabic transcript is translated using your Arabic → English pack. For dialect-sensitive translation of the transcript, select **Local language model (Ollama)**.
+
+### Written text and transcripts
+
+1. Install [Ollama for Windows](https://ollama.com/download/windows) and keep it running locally.
+2. In GLTS Settings, click **Check models**, then download **Qwen2.5 7B** (about 5 GB). With 16 GB RAM or more, this is the recommended starting option. **Qwen2.5 3B** (about 2 GB) is a lighter alternative.
+3. Select **Local language model (Ollama)** as the translation engine, choose the installed model, and translate Sana’ani text, TXT/PDF documents, or an audio transcript.
+
+GLTS communicates only with Ollama at `127.0.0.1:11434`, with proxy use disabled for this connection. Model downloads need internet, but translation stays local and requires no API key. Ollama chooses its own CPU/GPU resources; the GLTS CPU/CUDA setting controls Argos and speech inference. Make sure the selected model is installed before disconnecting. Translations of long documents are split into bounded chunks; context across chunks may be imperfect.
+
+Qwen2.5 is a general multilingual model, not a validated Sana’ani translation pack. Results may omit, misinterpret or invent meanings and should be checked against known examples. End-to-end Qwen inference has not been validated in this cloud environment.
+
+### Updating Windows for this feature
+
+Stop GLTS and copy the latest source files from GitHub into your existing folder, keeping `.venv`, `.local`, and `models`. Open a terminal in that folder and run:
+
+```bat
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+This installs the conversion dependency for the optional speech pack. Restart GLTS and press Ctrl+F5 in the browser. Model downloads run in the background, and Settings reports completion or errors. If speech preparation fails, see `.local/sanaani-install.log`.
+
 ## Limits
 
 - Uploaded files: up to the limit chosen in Settings (25 MB by default). Extracted text: up to 100,000 characters.

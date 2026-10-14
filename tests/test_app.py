@@ -158,3 +158,96 @@ def test_gui_settings(client):
     assert b'WORDS WITHOUT BORDERS' not in page
     for control in [b'dark-mode', b'pack-search', b'max-upload', b'compute-mode']:
         assert control in page
+
+
+def test_sanaani_text_uses_local_language_model(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(app, 'translate_local', lambda *args: calls.append(args) or 'I want to go home.')
+    response = client.post('/api/translate', data={'text': 'اشتي اروح البيت', 'source_language': 'ar-sanaa', 'language': 'en', 'engine': 'ollama', 'llm_model': 'qwen2.5:7b'})
+    assert response.status_code == 200
+    assert response.json['translation'] == 'I want to go home.'
+    assert calls[0][1:] == ('ar-sanaa', 'English', 'qwen2.5:7b')
+    response = client.post('/api/translate', data={'text': 'اشتي', 'source_language': 'ar-sanaa', 'language': 'en'})
+    assert response.status_code == 400
+    assert 'not dialect-specific' in response.json['error']
+
+
+def test_sanaani_audio_routes_to_dedicated_model(client, monkeypatch):
+    calls = []
+    class Speech:
+        def transcribe(self, audio, **kwargs):
+            calls.append(kwargs)
+            return [SimpleNamespace(text='اشتي اروح البيت')], None
+    monkeypatch.setattr(app, 'load_speech_model', lambda mode, pack: calls.append((mode, pack)) or Speech())
+    monkeypatch.setattr(app, 'translate', lambda text, source, target: 'I want to go home.' if source == 'ar' else None)
+    response = client.post('/api/translate', data={'source_language': 'ar-sanaa', 'language': 'en', 'file': (io.BytesIO(b'audio'), 'sanaa.wav')})
+    assert response.status_code == 200
+    assert calls[0] == ('cpu', app.SANAANI_ID)
+    assert calls[1]['language'] == 'ar'
+    assert response.json['source'] == 'اشتي اروح البيت'
+
+
+def test_optional_models_require_license_and_known_names(client, monkeypatch):
+    monkeypatch.setattr(app, 'sanaani_installed', lambda: False)
+    monkeypatch.setattr(app, 'installed_models', lambda: [])
+    assert client.post('/api/local-models/install', json={'kind': 'speech'}).status_code == 400
+    assert client.post('/api/local-models/install', json={'kind': 'llm', 'model': 'untrusted/model'}).status_code == 400
+    assert client.post('/api/local-models/install', json={'kind': 'speech', 'accept_license': True}, headers={'Origin': 'https://example.com'}).status_code == 403
+    monkeypatch.setitem(app.model_job, 'state', 'running')
+    assert client.post('/api/local-models/install', json={'kind': 'speech', 'accept_license': True}).status_code == 409
+    status = client.get('/api/local-models')
+    assert status.status_code == 200
+    assert status.json['job']['state'] == 'running'
+
+
+def test_background_model_download_updates_status(monkeypatch, tmp_path):
+    monkeypatch.setattr(app, 'installed_models', lambda: ['qwen2.5:7b'])
+    calls = []
+    monkeypatch.setattr(app, 'ollama_request', lambda *args, **kwargs: calls.append(args) or {})
+    monkeypatch.setattr(app, 'model_job', {'state': 'running'})
+    app.run_model_install('llm', 'qwen2.5:7b')
+    assert calls[0] == ('/api/pull', {'model': 'qwen2.5:7b', 'stream': False})
+    assert app.model_job['state'] == 'complete'
+    def failed(*args, **kwargs):
+        raise ValueError('Connection refused')
+    monkeypatch.setattr(app, 'ollama_request', failed)
+    app.run_model_install('llm', 'qwen2.5:7b')
+    assert app.model_job['state'] == 'failed'
+    assert 'Connection refused' in app.model_job['message']
+
+
+def test_local_llm_chunking_and_truncation(monkeypatch):
+    import local_models
+    monkeypatch.setattr(local_models, 'installed_models', lambda: ['qwen2.5:7b'])
+    calls = []
+    def chat(path, payload, **kwargs):
+        calls.append(payload)
+        return {'message': {'content': 'translated'}, 'done_reason': 'stop'}
+    monkeypatch.setattr(local_models, 'ollama_request', chat)
+    result = local_models.translate_local('a' * 3000, 'ar-sanaa', 'English', 'qwen2.5:7b')
+    assert result == 'translated\ntranslated'
+    assert 'Sana’ani' in calls[0]['messages'][0]['content']
+    assert ''.join(p['messages'][1]['content'] for p in calls) == 'a' * 3000
+    monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'message': {'content': 'cut off'}, 'done_reason': 'length'})
+    with pytest.raises(ValueError, match='incomplete'):
+        local_models.translate_local('text', 'ar-sanaa', 'English', 'qwen2.5:7b')
+
+
+def test_real_sanaani_speech_inference_offline(monkeypatch):
+    if not app.sanaani_installed():
+        pytest.skip('Optional Sana’ani speech pack is not installed')
+    import wave
+    buffer = io.BytesIO()
+    with wave.open(buffer, 'wb') as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16000)
+        audio.writeframes(b'\0\0' * 16000)
+    buffer.seek(0)
+    def denied(*args, **kwargs):
+        raise AssertionError('Network attempted during speech inference')
+    monkeypatch.setattr(socket.socket, 'connect', denied)
+    model = app.load_speech_model('cpu', app.SANAANI_ID)
+    segments, info = model.transcribe(buffer, language='ar', beam_size=1)
+    assert isinstance(list(segments), list)
+    assert info.language == 'ar'

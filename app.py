@@ -2,9 +2,11 @@ import io
 import json
 import os
 import re
+import subprocess
+import sys
 from functools import lru_cache
 from pathlib import Path
-from threading import Lock, RLock
+from threading import Lock, RLock, Thread
 
 ROOT = Path(__file__).resolve().parent
 os.environ.setdefault('XDG_DATA_HOME', str(ROOT / '.local/share'))
@@ -16,6 +18,8 @@ os.environ['ARGOS_MODEL_PROVIDER'] = 'OPENNMT'
 
 from flask import Flask, jsonify, render_template, request
 from pypdf import PdfReader
+from speech_packs import SANAANI_ID, SANAANI_PATH, sanaani_installed
+from local_models import MODELS, installed_models, ollama_request, translate_local
 
 app = Flask(__name__)
 SETTINGS_PATH = ROOT / '.local/settings.json'
@@ -64,11 +68,11 @@ def speech_model():
 
 
 @lru_cache(maxsize=2)
-def load_speech_model(mode):
+def load_speech_model(mode, pack='default'):
     from faster_whisper import WhisperModel
-    path = ROOT / 'models/whisper-tiny'
+    path = SANAANI_PATH if pack == SANAANI_ID else ROOT / 'models/whisper-tiny'
     if not (path / 'model.bin').exists():
-        raise ValueError('Install the local speech model using prepare_models.py before translating audio.')
+        raise ValueError('Download the Sana’ani speech pack in Settings first.' if pack == SANAANI_ID else 'Install the local speech model using prepare_models.py before translating audio.')
     return WhisperModel(str(path), device=mode, compute_type='float16' if mode == 'cuda' else 'int8', local_files_only=True, cpu_threads=2)
 
 
@@ -94,7 +98,8 @@ def extract_text(upload, source):
             raise ValueError('This PDF could not be read. Please upload a valid PDF.')
     if suffix in AUDIO:
         try:
-            segments, _ = speech_model().transcribe(io.BytesIO(data), language=source, beam_size=1)
+            model = load_speech_model(compute_mode(), SANAANI_ID) if source == 'ar-sanaa' else speech_model()
+            segments, _ = model.transcribe(io.BytesIO(data), language='ar' if source == 'ar-sanaa' else source, beam_size=1)
             return ' '.join(segment.text.strip() for segment in segments)
         except ValueError:
             raise
@@ -138,10 +143,18 @@ def translate(text, source, target):
     return translation.translate(text)
 
 
+def ui_languages():
+    from types import SimpleNamespace
+    installed = {p.code: p for p in languages()}
+    for code, name in [('ar', 'Arabic'), ('en', 'English')]:
+        installed.setdefault(code, SimpleNamespace(code=code, name=name))
+    return list(installed.values())
+
+
 @app.get('/')
 def index():
-    installed = languages()
-    return render_template('index.html', languages=installed, configured=bool(installed))
+    installed = ui_languages()
+    return render_template('index.html', languages=installed, configured=bool(languages()))
 
 
 @app.post('/api/translate')
@@ -159,9 +172,9 @@ def translation():
 
 
 def run_translation(source, target):
-    compute_mode()
-    available = {language.code for language in languages()}
-    if source not in available or target not in available:
+    engine = request.form.get('engine', 'argos')
+    available = {language.code for language in ui_languages()}
+    if source not in available | {'ar-sanaa'} or target not in available:
         raise ValueError('Choose installed source and target languages.')
     upload = request.files.get('file')
     text = extract_text(upload, source) if upload else request.form.get('text', '')
@@ -169,7 +182,16 @@ def run_translation(source, target):
         raise ValueError('Enter text or upload a readable file. Scanned PDFs require OCR and are not supported yet.')
     if len(text) > 100000:
         raise ValueError('Please use a document with fewer than 100,000 characters.')
-    return jsonify(translation=translate(text, source, target), source=text, language=target)
+    if engine == 'ollama':
+        names = {p.code: p.name for p in ui_languages()}
+        result = translate_local(text, source if source == 'ar-sanaa' else names[source], names[target], request.form.get('llm_model', 'qwen2.5:7b'))
+    elif engine == 'argos':
+        if source == 'ar-sanaa' and not (upload and Path(upload.filename or '').suffix.lower() in AUDIO):
+            raise ValueError('Select Local language model for Sana’ani text translation. The standard Arabic pack is not dialect-specific.')
+        result = translate(text, 'ar' if source == 'ar-sanaa' else source, target)
+    else:
+        raise ValueError('Choose a supported translation engine.')
+    return jsonify(translation=result, source=text, language=target)
 
 
 # Catalog access is opt-in: opening Settings only reads local metadata.
@@ -228,7 +250,7 @@ def upload_settings():
 @app.get('/api/packs')
 def list_packs():
     try:
-        return jsonify(packs=pack_catalog(), languages=[dict(code=p.code, name=p.name) for p in languages()])
+        return jsonify(packs=pack_catalog(), languages=[dict(code=p.code, name=p.name) for p in ui_languages()])
     except Exception:
         return jsonify(error='Could not read local language packs.'), 500
 
@@ -262,12 +284,81 @@ def manage_packs():
                 downloaded = selected.download()
                 with inference_lock:
                     manager.install_from_path(downloaded)
-        return jsonify(packs=pack_catalog(), languages=[dict(code=p.code, name=p.name) for p in languages()])
+        return jsonify(packs=pack_catalog(), languages=[dict(code=p.code, name=p.name) for p in ui_languages()])
     except Exception:
         app.logger.exception('Language pack operation failed')
         return jsonify(error='Could not download the catalog or language pack. Check your internet connection and try again. Existing packs remain available offline.'), 502
     finally:
         pack_lock.release()
+
+
+model_job_lock = Lock()
+model_job = dict(state='idle', message='', kind='')
+
+
+def run_model_install(kind, model):
+    try:
+        if kind == 'speech':
+            with (ROOT / '.local/sanaani-install.log').open('w', encoding='utf-8') as log:
+                process = subprocess.Popen([sys.executable, str(ROOT / 'prepare_sanaani.py'), '--accept-noncommercial-license'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+                code = process.wait()
+            if code or not sanaani_installed():
+                raise ValueError('Speech installation failed. Check internet access, free disk space, and .local/sanaani-install.log. Run pip install -r requirements.txt if dependencies are missing.')
+        else:
+            ollama_request('/api/pull', {'model': model, 'stream': False}, timeout=3600)
+            if model not in installed_models():
+                raise ValueError('Ollama did not finish installing the selected model.')
+        with model_job_lock:
+            model_job.update(state='complete', message='Model installed and ready for offline use.')
+    except Exception as exc:
+        app.logger.exception('Optional model installation failed')
+        with model_job_lock:
+            model_job.update(state='failed', message=str(exc))
+
+
+@app.get('/api/local-models')
+def local_model_status():
+    with model_job_lock:
+        job = dict(model_job)
+    try:
+        installed = installed_models()
+        connected = True
+    except ValueError:
+        installed = []
+        connected = False
+    return jsonify(speech_installed=sanaani_installed(), ollama_connected=connected, installed_models=installed, job=job)
+
+
+@app.post('/api/local-models/install')
+def install_local_model():
+    if not request.is_json:
+        return jsonify(error='A JSON request is required.'), 400
+    if request.headers.get('Origin') and request.headers['Origin'] != request.host_url.rstrip('/'):
+        return jsonify(error='Use the local GLTS interface to download models.'), 403
+    data = request.get_json()
+    if not isinstance(data, dict):
+        return jsonify(error='Choose a supported model.'), 400
+    kind = data.get('kind')
+    model = data.get('model')
+    if kind == 'speech':
+        if data.get('accept_license') is not True:
+            return jsonify(error='Accept the noncommercial speech-model license before downloading.'), 400
+        if sanaani_installed():
+            return jsonify(message='Speech model already installed.'), 200
+    elif kind == 'llm' and model in MODELS:
+        try:
+            installed_models()
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+    else:
+        return jsonify(error='Choose a supported model.'), 400
+    with model_job_lock:
+        if model_job['state'] == 'running':
+            return jsonify(error='A model download is already running. Please wait.'), 409
+        (ROOT / '.local').mkdir(parents=True, exist_ok=True)
+        model_job.update(state='running', kind=kind, message='Downloading and preparing the model. This may take several minutes. Keep GLTS running.')
+        Thread(target=run_model_install, args=(kind, model), daemon=True).start()
+    return jsonify(message='Download started.'), 202
 
 
 @app.errorhandler(413)

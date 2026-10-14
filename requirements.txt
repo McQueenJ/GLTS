@@ -4,3 +4,4 @@ argostranslate==1.11.0
 faster-whisper==1.2.1
 pytest==9.1.1
 av==15.1.0
+transformers==4.51.3

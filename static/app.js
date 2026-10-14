@@ -86,8 +86,10 @@ function updateLanguages(items) {
   for (const id of ['source_language', 'language']) {
     const select = document.getElementById(id);
     const previous = select.value;
-    select.replaceChildren(...items.map(item => new Option(item.name, item.code)));
-    if (items.some(item => item.code === previous)) select.value = previous;
+    const choices = items.map(item => new Option(item.name, item.code));
+    if (id === 'source_language') choices.push(new Option('Sana’ani Arabic (Yemen)', 'ar-sanaa'));
+    select.replaceChildren(...choices);
+    if (choices.some(option => option.value === previous)) select.value = previous;
   }
 }
 async function requestPacks(url, body, message) {
@@ -104,6 +106,7 @@ async function requestPacks(url, body, message) {
 }
 document.querySelector('#open-settings').addEventListener('click', () => {
   settings.showModal();
+  checkLocalModels();
   if (!packBusy) requestPacks('/api/packs', undefined, 'Reading local packs…');
 });
 document.querySelector('#close-settings').addEventListener('click', () => settings.close());
@@ -150,3 +153,54 @@ document.querySelector('#save-compute-mode').addEventListener('click', async () 
   } catch (error) { settingsStatus.textContent = error.message; }
   finally { button.disabled = false; }
 });
+
+const engine = document.querySelector('#engine');
+const llmModel = document.querySelector('#llm-model');
+function showEngine() { document.querySelector('#llm-options').hidden = engine.value !== 'ollama'; }
+try {
+  if (localStorage.getItem('glts-engine') === 'ollama') engine.value = 'ollama';
+  const previousModel = localStorage.getItem('glts-llm');
+  if (['qwen2.5:3b', 'qwen2.5:7b'].includes(previousModel)) llmModel.value = previousModel;
+} catch {}
+showEngine();
+engine.addEventListener('change', () => { showEngine(); try { localStorage.setItem('glts-engine', engine.value); } catch {} });
+llmModel.addEventListener('change', () => { try { localStorage.setItem('glts-llm', llmModel.value); } catch {} });
+const modelStatus = document.querySelector('#local-model-status');
+const downloadStatus = document.querySelector('#local-download-status');
+const speechInstall = document.querySelector('#install-speech');
+const llmInstall = document.querySelector('#install-llm');
+let modelPoll;
+async function checkLocalModels() {
+  clearTimeout(modelPoll);
+  try {
+    const response = await fetch('/api/local-models');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not check models.');
+    const downloading = data.job.state === 'running';
+    speechInstall.disabled = data.speech_installed || downloading;
+    speechInstall.textContent = data.speech_installed ? 'Speech pack installed' : 'Download Sana’ani speech pack';
+    llmInstall.disabled = downloading || !data.ollama_connected;
+    modelStatus.textContent = data.ollama_connected ? `Ollama connected. Installed language models: ${data.installed_models.join(', ') || 'none'}.` : 'Ollama is not running. Install/start Ollama, then click Check models.';
+    downloadStatus.textContent = data.job.message;
+    if (downloading) modelPoll = setTimeout(checkLocalModels, 3000);
+  } catch (error) { modelStatus.textContent = error.message; }
+}
+async function installLocalModel(body) {
+  speechInstall.disabled = llmInstall.disabled = true;
+  downloadStatus.textContent = 'Starting model download…';
+  try {
+    const response = await fetch('/api/local-models/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not start download.');
+    await checkLocalModels();
+  } catch (error) {
+    await checkLocalModels();
+    downloadStatus.textContent = error.message;
+  }
+}
+speechInstall.addEventListener('click', () => {
+  if (!document.querySelector('#speech-license').checked) { downloadStatus.textContent = 'Read and accept the noncommercial license before downloading.'; return; }
+  installLocalModel({ kind: 'speech', accept_license: true });
+});
+llmInstall.addEventListener('click', () => installLocalModel({ kind: 'llm', model: document.querySelector('#download-llm').value }));
+document.querySelector('#refresh-models').addEventListener('click', checkLocalModels);
