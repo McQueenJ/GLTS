@@ -1,6 +1,6 @@
 # Global Language Translation Tool (GLTS)
 
-An offline web GUI for translating text, selectable-text PDFs, and audio. Translation uses local Argos Translate language packs. Speech recognition uses a local multilingual Whisper model on CPU. No API key or online service is used at runtime. All fonts, scripts, and styles are local.
+An offline web GUI for translating text, selectable-text PDFs, and audio. Translation uses local Argos Translate language packs. Speech recognition uses a local multilingual Whisper model on CPU. Translation and transcription work offline. Settings can explicitly download additional language packs while online; no API key is needed. All fonts, scripts, and styles are local.
 
 ## Windows 11 installation
 
@@ -28,9 +28,22 @@ Use your local browser on port 5000. Select the source and target languages, typ
 
 `prepare_models.py` is an explicitly online setup utility, never invoked by the app. Models are stored under `models/` and `.local/` and should be retained for offline use. Additional packs can be downloaded using `--languages` or installed from local `.argosmodel` files with `argostranslate.package.install_from_path`. The runtime uses only installed packs and the local speech model.
 
+## Settings
+
+Click **Settings** in the GUI:
+
+- **Dark mode** is saved in your browser and restored on your next visit.
+- **Language packs** shows locally installed packs. Click **Refresh available packs** while online, search for a language, then click **Download** for the direction you need. Language selectors update after installation; documents are never sent during pack downloads. Installed packs remain usable offline.
+- **Maximum upload size** accepts 1–1024 MB (25 MB by default). Changes apply immediately and persist in `.local/settings.json`. Larger uploads require more RAM and processing time. The extracted-text limit remains 100,000 characters.
+- **Compute mode** offers CPU (default) or CUDA for NVIDIA GPUs. CUDA applies to both translation and speech recognition. On Windows, install a compatible NVIDIA driver, CUDA 12, and cuDNN 9, ensuring their DLL directories are on PATH, then restart GLTS. See the [faster-whisper GPU requirements](https://github.com/SYSTRAN/faster-whisper#gpu). GPU detection alone does not verify all runtime libraries. If CUDA fails, return to CPU in Settings. CUDA inference has not been tested on a GPU in this environment.
+
+### Updating an existing Windows installation
+
+Stop GLTS, download the latest GitHub ZIP, and copy its source files into your existing GLTS folder. Keep `.venv`, `.local`, and `models` so your dependencies, settings, and language packs are retained. Launch GLTS again and refresh the browser (Ctrl+F5).
+
 ## Limits
 
-- Uploaded files: up to 25 MB. Extracted text: up to 100,000 characters.
+- Uploaded files: up to the limit chosen in Settings (25 MB by default). Extracted text: up to 100,000 characters.
 - PDF text extraction requires selectable text. Scanned PDFs, OCR, and PDF layout preservation are not included.
 - Audio formats: MP3, WAV, M4A, MP4, MPEG, MPGA, WEBM. Source language must match the speech. The transcript is displayed alongside the translation.
 - The tiny speech model is economical on CPU; Arabic dialects and noisy recordings may need a larger model for reliable results.
