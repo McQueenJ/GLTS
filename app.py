@@ -55,7 +55,7 @@ def compute_mode():
     if mode == 'cuda' and not cuda_available():
         raise ValueError('CUDA is unavailable. Switch to CPU in Settings or install compatible NVIDIA drivers, CUDA 12, and cuDNN 9.')
     return mode
-AUDIO = {'.mp3', '.wav', '.m4a', '.mp4', '.mpeg', '.mpga', '.webm'}
+AUDIO = {'.mp3', '.wav', '.m4a', '.mp4', '.mpeg', '.mpga', '.webm', '.opus'}
 
 
 def languages():

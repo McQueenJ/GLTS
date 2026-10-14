@@ -77,7 +77,7 @@ This installs the conversion dependency for the optional speech pack. Restart GL
 
 - Uploaded files: up to the limit chosen in Settings (25 MB by default). Extracted text: up to 100,000 characters.
 - PDF text extraction requires selectable text. Scanned PDFs, OCR, and PDF layout preservation are not included.
-- Audio formats: MP3, WAV, M4A, MP4, MPEG, MPGA, WEBM. Source language must match the speech. The transcript is displayed alongside the translation.
+- Audio formats: MP3, WAV, M4A, MP4, MPEG, MPGA, WEBM, OPUS. Source language must match the speech. The transcript is displayed alongside the translation.
 - The tiny speech model is economical on CPU; Arabic dialects and noisy recordings may need a larger model for reliable results.
 - Files and results are processed in memory and are not saved by GLTS. Review important translations for accuracy.
 - This is a local single-user app. The server binds to loopback; public deployment requires a production server and access controls.

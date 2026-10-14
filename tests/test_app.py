@@ -42,10 +42,11 @@ def test_bad_pdf_and_empty_input(client):
         assert response.status_code == 400
 
 
-def test_audio_extract(monkeypatch):
+@pytest.mark.parametrize('filename', ['speech.wav', 'speech.opus', 'speech.OPUS'])
+def test_audio_extract(monkeypatch, filename):
     monkeypatch.setattr(app, 'speech_model', lambda: SimpleNamespace(transcribe=lambda stream, **kwargs: ([SimpleNamespace(text='مرحبا')], None)))
     from werkzeug.datastructures import FileStorage
-    assert app.extract_text(FileStorage(io.BytesIO(b'audio'), filename='speech.wav'), 'ar') == 'مرحبا'
+    assert app.extract_text(FileStorage(io.BytesIO(b'audio'), filename=filename), 'ar') == 'مرحبا'
 
 
 def test_real_offline_arabic_translation(monkeypatch):
@@ -180,7 +181,7 @@ def test_sanaani_audio_routes_to_dedicated_model(client, monkeypatch):
             return [SimpleNamespace(text='اشتي اروح البيت')], None
     monkeypatch.setattr(app, 'load_speech_model', lambda mode, pack: calls.append((mode, pack)) or Speech())
     monkeypatch.setattr(app, 'translate', lambda text, source, target: 'I want to go home.' if source == 'ar' else None)
-    response = client.post('/api/translate', data={'source_language': 'ar-sanaa', 'language': 'en', 'file': (io.BytesIO(b'audio'), 'sanaa.wav')})
+    response = client.post('/api/translate', data={'source_language': 'ar-sanaa', 'language': 'en', 'file': (io.BytesIO(b'audio'), 'sanaa.opus')})
     assert response.status_code == 200
     assert calls[0] == ('cpu', app.SANAANI_ID)
     assert calls[1]['language'] == 'ar'
@@ -251,3 +252,17 @@ def test_real_sanaani_speech_inference_offline(monkeypatch):
     segments, info = model.transcribe(buffer, language='ar', beam_size=1)
     assert isinstance(list(segments), list)
     assert info.language == 'ar'
+
+
+def test_opus_decoding():
+    from faster_whisper.audio import decode_audio
+    path = Path(__file__).parent / 'fixtures/tone.opus'
+    audio = decode_audio(str(path), sampling_rate=16000)
+    assert 15000 <= len(audio) <= 17000
+    assert abs(audio).max() > 0.01
+
+
+def test_opus_upload_available_in_gui(client):
+    page = client.get('/').get_data(as_text=True)
+    assert '.opus' in page
+    assert 'OPUS' in page
