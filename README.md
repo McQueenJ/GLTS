@@ -73,6 +73,18 @@ Stop GLTS and copy the latest source files from GitHub into your existing folder
 
 This installs the conversion dependency for the optional speech pack. Restart GLTS and press Ctrl+F5 in the browser. Model downloads run in the background, and Settings reports completion or errors. If speech preparation fails, see `.local/sanaani-install.log`.
 
+## Experimental source auto-detection
+
+Manual source selection remains the default. Choose **Auto-detect (experimental)** and click Translate. GLTS detects the language, displays a text/transcript preview and a review panel, and stops before translation. Correct the suggested source if necessary, click **Confirm source language**, then click Translate again.
+
+- Text and selectable-text PDFs use a locally bundled `langid` detector. Very short input is rejected; short or mixed-language passages may be misidentified.
+- Audio uses Whisper's language identification. After confirmation, the audio is transcribed again using your chosen source model; selecting Sana’ani uses the optional Yemeni model.
+- Arabic input can optionally be checked by your installed Qwen model for a Sana’ani suggestion. This is an unverified text-based guess, including for an audio transcript, not a validated acoustic dialect classifier. Unknown/other results keep standard Arabic. If Ollama is missing, ordinary language detection still works.
+- A detected language may need an additional translation pack or the local language-model engine. Sana’ani written translation still requires the local language model.
+- Detection does not fetch models or send content outside your computer. Install dependencies before use with `.venv\Scripts\python.exe -m pip install -r requirements.txt` on Windows.
+
+If auto-detection is not useful, choose a source manually to bypass it. The Git tag `glts-before-auto-detect` preserves the prior version for a full rollback; keep your local settings and downloaded models when replacing source files.
+
 ## Limits
 
 - Uploaded files: up to the limit chosen in Settings (25 MB by default). Extracted text: up to 100,000 characters.

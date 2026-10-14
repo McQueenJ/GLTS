@@ -5,3 +5,5 @@ faster-whisper==1.2.1
 pytest==9.1.1
 av==15.1.0
 transformers==4.51.3
+langid==1.1.6
+pycountry==24.6.1

@@ -20,6 +20,7 @@ from flask import Flask, jsonify, render_template, request
 from pypdf import PdfReader
 from speech_packs import SANAANI_ID, SANAANI_PATH, sanaani_installed
 from local_models import MODELS, installed_models, ollama_request, translate_local
+from detection import detect_text, language_name, suggest_dialect
 
 app = Flask(__name__)
 SETTINGS_PATH = ROOT / '.local/settings.json'
@@ -97,15 +98,20 @@ def extract_text(upload, source):
         except Exception:
             raise ValueError('This PDF could not be read. Please upload a valid PDF.')
     if suffix in AUDIO:
-        try:
-            model = load_speech_model(compute_mode(), SANAANI_ID) if source == 'ar-sanaa' else speech_model()
-            segments, _ = model.transcribe(io.BytesIO(data), language='ar' if source == 'ar-sanaa' else source, beam_size=1)
-            return ' '.join(segment.text.strip() for segment in segments)
-        except ValueError:
-            raise
-        except Exception:
-            raise ValueError('Audio could not be transcribed. Check the file and local speech model. In CUDA mode, verify CUDA 12 and cuDNN 9 are installed, or switch to CPU in Settings.')
+        return transcribe_audio(data, source)[0]
     raise ValueError('Choose a supported text, PDF, or audio file.')
+
+
+def transcribe_audio(data, source):
+    try:
+        model = load_speech_model(compute_mode(), SANAANI_ID) if source == 'ar-sanaa' else speech_model()
+        language = None if source == 'auto' else ('ar' if source == 'ar-sanaa' else source)
+        segments, info = model.transcribe(io.BytesIO(data), language=language, beam_size=1)
+        return ' '.join(segment.text.strip() for segment in segments), info
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError('Audio could not be transcribed. Check the file and local speech model. In CUDA mode, verify CUDA 12 and cuDNN 9 are installed, or switch to CPU in Settings.')
 
 
 class LocalSentenceSplitter:
@@ -174,7 +180,9 @@ def translation():
 def run_translation(source, target):
     engine = request.form.get('engine', 'argos')
     available = {language.code for language in ui_languages()}
-    if source not in available | {'ar-sanaa'} or target not in available:
+    if source == 'auto':
+        raise ValueError('Detect and confirm the source language before translating.')
+    if (source != 'ar-sanaa' and not language_name(source)) or target not in available:
         raise ValueError('Choose installed source and target languages.')
     upload = request.files.get('file')
     text = extract_text(upload, source) if upload else request.form.get('text', '')
@@ -184,7 +192,7 @@ def run_translation(source, target):
         raise ValueError('Please use a document with fewer than 100,000 characters.')
     if engine == 'ollama':
         names = {p.code: p.name for p in ui_languages()}
-        result = translate_local(text, source if source == 'ar-sanaa' else names[source], names[target], request.form.get('llm_model', 'qwen2.5:7b'))
+        result = translate_local(text, source if source == 'ar-sanaa' else names.get(source, language_name(source)), names[target], request.form.get('llm_model', 'qwen2.5:7b'))
     elif engine == 'argos':
         if source == 'ar-sanaa' and not (upload and Path(upload.filename or '').suffix.lower() in AUDIO):
             raise ValueError('Select Local language model for Sana’ani text translation. The standard Arabic pack is not dialect-specific.')
@@ -192,6 +200,46 @@ def run_translation(source, target):
     else:
         raise ValueError('Choose a supported translation engine.')
     return jsonify(translation=result, source=text, language=target)
+
+
+@app.post('/api/detect')
+def detect_source():
+    try:
+        with inference_lock:
+            upload = request.files.get('file')
+            is_audio = bool(upload and Path(upload.filename or '').suffix.lower() in AUDIO)
+            if is_audio:
+                data = upload.read()
+                if not data:
+                    raise ValueError('The uploaded file is empty.')
+                text, info = transcribe_audio(data, 'auto')
+                code = info.language
+                if not text.strip():
+                    raise ValueError('No speech was found. Choose a source language manually or try a clearer recording.')
+                warning = 'Whisper identified the language, not the dialect. Review the transcript and language before translating.'
+                if getattr(info, 'language_probability', 0) < 0.6:
+                    warning += ' Language detection was uncertain.'
+            else:
+                text = extract_text(upload, 'auto') if upload else request.form.get('text', '')
+                if len(text) > 100000:
+                    raise ValueError('Please use a document with fewer than 100,000 characters.')
+                code, warning = detect_text(text)
+            name = language_name(code)
+            if not name:
+                raise ValueError('Could not identify a supported language. Choose the source manually.')
+            dialect = None
+            if code == 'ar' and request.form.get('suggest_dialect') == 'on':
+                try:
+                    dialect = suggest_dialect(text, request.form.get('llm_model', 'qwen2.5:7b'))
+                    warning += ' Sana’ani is an unverified model suggestion, not a confirmed dialect.' if dialect else ' No reliable Sana’ani suggestion was found; you may select it manually.'
+                except ValueError as exc:
+                    warning += ' ' + str(exc)
+            return jsonify(language=code, name=name, dialect=dialect, warning=warning, preview=text[:600], is_audio=is_audio)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception:
+        app.logger.exception('Source detection failed')
+        return jsonify(error='Detection failed. Choose the source language manually or check your local models.'), 500
 
 
 # Catalog access is opt-in: opening Settings only reads local metadata.

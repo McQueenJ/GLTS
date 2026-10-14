@@ -266,3 +266,70 @@ def test_opus_upload_available_in_gui(client):
     page = client.get('/').get_data(as_text=True)
     assert '.opus' in page
     assert 'OPUS' in page
+
+
+@pytest.mark.parametrize('text,code', [
+    ('This is a longer English passage about translating documents offline.', 'en'),
+    ('مرحبا بكم في هذا البرنامج لترجمة النصوص والوثائق إلى اللغة الإنجليزية.', 'ar'),
+    ('Bonjour, ce programme permet de traduire des documents sans connexion Internet.', 'fr'),
+])
+def test_text_detection_offline(monkeypatch, text, code):
+    from detection import detect_text
+    def denied(*args, **kwargs):
+        raise AssertionError('Network attempted during text detection')
+    monkeypatch.setattr(socket.socket, 'connect', denied)
+    assert detect_text(text)[0] == code
+
+
+def test_detection_requires_review_and_handles_short_text(client, monkeypatch):
+    def unexpected(*args):
+        raise AssertionError('Detection must not translate')
+    monkeypatch.setattr(app, 'translate', unexpected)
+    response = client.post('/api/detect', data={'text': 'This English document explains how local translation works.'})
+    assert response.status_code == 200
+    assert response.json['language'] == 'en'
+    assert 'translation' not in response.json
+    assert 'Review' in response.json['warning']
+    assert client.post('/api/detect', data={'text': 'hi'}).status_code == 400
+    response = client.post('/api/translate', data={'source_language': 'auto', 'language': 'en', 'text': 'test'})
+    assert response.status_code == 400
+    assert 'confirm' in response.json['error']
+
+
+def test_audio_autodetection(client, monkeypatch):
+    calls = []
+    def transcribe(data, source):
+        calls.append(source)
+        return 'مرحبا بكم في هذا البرنامج', SimpleNamespace(language='ar', language_probability=0.3)
+    monkeypatch.setattr(app, 'transcribe_audio', transcribe)
+    monkeypatch.setattr(app, 'suggest_dialect', lambda *_: 'ar-sanaa')
+    response = client.post('/api/detect', data={'file': (io.BytesIO(b'opus'), 'audio.opus'), 'suggest_dialect': 'on'})
+    assert response.status_code == 200
+    assert calls == ['auto']
+    assert response.json['dialect'] == 'ar-sanaa'
+    assert 'unverified' in response.json['warning']
+    assert 'uncertain' in response.json['warning']
+    assert response.json['is_audio']
+
+
+def test_missing_dialect_model_does_not_block_detection(client, monkeypatch):
+    def missing(*args):
+        raise ValueError('Ollama is unavailable')
+    monkeypatch.setattr(app, 'suggest_dialect', missing)
+    response = client.post('/api/detect', data={'text': 'مرحبا بكم في هذا البرنامج لترجمة النصوص والوثائق إلى اللغة الإنجليزية.', 'suggest_dialect': 'on'})
+    assert response.status_code == 200
+    assert response.json['language'] == 'ar'
+    assert response.json['dialect'] is None
+    assert 'unavailable' in response.json['warning']
+
+
+def test_dialect_suggestion_is_conservative(monkeypatch):
+    import detection
+    import local_models
+    monkeypatch.setattr(local_models, 'installed_models', lambda: ['qwen2.5:7b'])
+    for value, expected in [('unknown', None), ('other', None), ('sanaani', 'ar-sanaa')]:
+        import json
+        monkeypatch.setattr(local_models, 'ollama_request', lambda *args, value=value, **kwargs: {'message': {'content': json.dumps({'dialect': value})}})
+        assert detection.suggest_dialect('مرحبا', 'qwen2.5:7b') == expected
+    monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'message': {'content': 'not JSON'}})
+    assert detection.suggest_dialect('مرحبا', 'qwen2.5:7b') is None

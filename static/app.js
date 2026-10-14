@@ -27,6 +27,12 @@ form.addEventListener('submit', async event => {
   try {
     await loadUploadSettings();
     if (file && file.size > maxUploadMB * 1024 * 1024) { status.textContent = `Files must be smaller than ${maxUploadMB} MB.`; return; }
+    if (document.querySelector('#source_language').value === 'auto') {
+      translateLabel.textContent = 'Detecting…';
+      status.textContent = 'Detecting the language locally… Review the result before translating.';
+      await detectSource(new FormData(form));
+      return;
+    }
     const response = await fetch('/api/translate', { method: 'POST', body: new FormData(form) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Translation failed.');
@@ -87,7 +93,9 @@ function updateLanguages(items) {
     const select = document.getElementById(id);
     const previous = select.value;
     const choices = items.map(item => new Option(item.name, item.code));
+    if (id === 'source_language') choices.unshift(new Option('Auto-detect (experimental)', 'auto'));
     if (id === 'source_language') choices.push(new Option('Sana’ani Arabic (Yemen)', 'ar-sanaa'));
+    if (id === 'source_language' && previous && !choices.some(option => option.value === previous)) choices.push(new Option(select.selectedOptions[0].textContent, previous));
     select.replaceChildren(...choices);
     if (choices.some(option => option.value === previous)) select.value = previous;
   }
@@ -204,3 +212,41 @@ speechInstall.addEventListener('click', () => {
 });
 llmInstall.addEventListener('click', () => installLocalModel({ kind: 'llm', model: document.querySelector('#download-llm').value }));
 document.querySelector('#refresh-models').addEventListener('click', checkLocalModels);
+
+const sourceSelect = document.querySelector('#source_language');
+const detectionReview = document.querySelector('#detection-review');
+const detectedSource = document.querySelector('#detected-source');
+function showAutoOptions() {
+  document.querySelector('#auto-options').hidden = sourceSelect.value !== 'auto';
+  detectionReview.hidden = true;
+}
+sourceSelect.addEventListener('change', showAutoOptions);
+showAutoOptions();
+function clearDetection() { detectionReview.hidden = true; }
+document.querySelector('#text').addEventListener('input', clearDetection);
+document.querySelector('#file').addEventListener('change', clearDetection);
+document.querySelector('#remove-file').addEventListener('click', clearDetection);
+async function detectSource(body) {
+  const originalText = document.querySelector('#text').value;
+  const originalFile = document.querySelector('#file').files[0];
+  detectionReview.hidden = true;
+  const response = await fetch('/api/detect', { method: 'POST', body });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Source detection failed.');
+  if (document.querySelector('#text').value !== originalText || document.querySelector('#file').files[0] !== originalFile || sourceSelect.value !== 'auto') throw new Error('The input changed during detection. Detect again or choose the source manually.');
+  const options = Array.from(sourceSelect.options).filter(option => option.value !== 'auto').map(option => new Option(option.textContent, option.value));
+  if (!options.some(option => option.value === data.language)) options.push(new Option(data.name, data.language));
+  detectedSource.replaceChildren(...options);
+  detectedSource.value = data.dialect || data.language;
+  document.querySelector('#detection-warning').textContent = `Detected language: ${data.name}. ${data.warning}`;
+  document.querySelector('#detection-preview').textContent = data.preview;
+  detectionReview.hidden = false;
+  status.textContent = 'Review the detected source, then click Confirm source language. Translation has not started.';
+}
+document.querySelector('#confirm-detection').addEventListener('click', () => {
+  if (detectionReview.hidden || submit.disabled) return;
+  if (!Array.from(sourceSelect.options).some(option => option.value === detectedSource.value)) sourceSelect.add(new Option(detectedSource.selectedOptions[0].textContent, detectedSource.value));
+  sourceSelect.value = detectedSource.value;
+  showAutoOptions();
+  status.textContent = 'Source confirmed. Click Translate to continue, or choose another source manually.';
+});
