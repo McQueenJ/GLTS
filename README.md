@@ -24,7 +24,7 @@ python -m venv .venv
 .venv/bin/python app.py
 ```
 
-Use your local browser on port 5000. Select the source and target languages, type text or upload a file, then translate. Results can be copied or downloaded as UTF-8 TXT. Arabic → English is included by the setup command. Language packs may support indirect translation through English; quality varies.
+Use your local browser on port 5000. Select the source and target languages, type text, choose a file, or drag a text/PDF/audio file into the upload area, then translate. Upload one file at a time; click Remove file to return to typed text. Results can be copied or downloaded as UTF-8 TXT. Arabic → English is included by the setup command. Language packs may support indirect translation through English; quality varies.
 
 `prepare_models.py` is an explicitly online setup utility, never invoked by the app. Models are stored under `models/` and `.local/` and should be retained for offline use. Additional packs can be downloaded using `--languages` or installed from local `.argosmodel` files with `argostranslate.package.install_from_path`. The runtime uses only installed packs and the local speech model.
 
