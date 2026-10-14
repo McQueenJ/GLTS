@@ -3,19 +3,30 @@ const form = document.querySelector('#translate-form');
 const output = document.querySelector('#output');
 const status = document.querySelector('#status');
 const submit = document.querySelector('#submit');
+const spinner = document.querySelector('#translate-spinner');
+const translateLabel = document.querySelector('#translate-label');
+const translateArrow = document.querySelector('#translate-arrow');
+function setTranslating(busy) {
+  submit.disabled = busy;
+  submit.setAttribute('aria-busy', String(busy));
+  spinner.hidden = !busy;
+  translateArrow.hidden = busy;
+  translateLabel.textContent = busy ? 'Translating…' : 'Translate';
+}
 const copy = document.querySelector('#copy');
 const download = document.querySelector('#download');
 form.addEventListener('submit', async event => {
   event.preventDefault();
+  if (submit.disabled) return;
+  setTranslating(true);
   output.value = '';
   copy.disabled = download.disabled = true;
   document.querySelector('#source-details').hidden = true;
   const file = document.querySelector('#file').files[0];
-  await loadUploadSettings();
-  if (file && file.size > maxUploadMB * 1024 * 1024) { status.textContent = `Files must be smaller than ${maxUploadMB} MB.`; return; }
-  submit.disabled = true;
   status.textContent = 'Translating… Audio and long documents may take a few minutes.';
   try {
+    await loadUploadSettings();
+    if (file && file.size > maxUploadMB * 1024 * 1024) { status.textContent = `Files must be smaller than ${maxUploadMB} MB.`; return; }
     const response = await fetch('/api/translate', { method: 'POST', body: new FormData(form) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Translation failed.');
@@ -25,7 +36,7 @@ form.addEventListener('submit', async event => {
     status.textContent = `Translated into ${data.language}.`;
     copy.disabled = download.disabled = false;
   } catch (error) { status.textContent = error.message || 'Could not connect to the server.'; }
-  finally { submit.disabled = false; }
+  finally { setTranslating(false); }
 });
 copy.addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(output.value); status.textContent = 'Translation copied.'; }
