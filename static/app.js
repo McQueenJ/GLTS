@@ -3,11 +3,13 @@ const form = document.querySelector('#translate-form');
 const output = document.querySelector('#output');
 const status = document.querySelector('#status');
 const submit = document.querySelector('#submit');
+const clearText = document.querySelector('#clear-text');
 const spinner = document.querySelector('#translate-spinner');
 const translateLabel = document.querySelector('#translate-label');
 const translateArrow = document.querySelector('#translate-arrow');
 function setTranslating(busy) {
   submit.disabled = busy;
+  clearText.disabled = busy;
   submit.setAttribute('aria-busy', String(busy));
   spinner.hidden = !busy;
   translateArrow.hidden = busy;
@@ -249,4 +251,22 @@ document.querySelector('#confirm-detection').addEventListener('click', () => {
   sourceSelect.value = detectedSource.value;
   showAutoOptions();
   status.textContent = 'Source confirmed. Click Translate to continue, or choose another source manually.';
+});
+
+clearText.addEventListener('click', () => {
+  if (submit.disabled) return;
+  const input = document.querySelector('#text');
+  const file = document.querySelector('#file');
+  input.value = '';
+  file.value = '';
+  file.dispatchEvent(new Event('change', { bubbles: true }));
+  output.value = '';
+  copy.disabled = download.disabled = true;
+  document.querySelector('#source').textContent = '';
+  document.querySelector('#source-details').hidden = true;
+  document.querySelector('#detection-preview').textContent = '';
+  document.querySelector('#detection-warning').textContent = '';
+  clearDetection();
+  status.textContent = 'Cleared. Paste new text or choose a file to translate.';
+  input.focus();
 });
