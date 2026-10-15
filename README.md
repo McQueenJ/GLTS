@@ -56,7 +56,7 @@ The speech pack transcribes audio, not written text. With **Standard language pa
 ### Written text and transcripts
 
 1. Install [Ollama for Windows](https://ollama.com/download/windows) and keep it running locally.
-2. In GLTS Settings, click **Check models**, then download **Qwen2.5 7B** (about 5 GB). With 16 GB RAM or more, this is the recommended starting option. **Qwen2.5 3B** (about 2 GB) is a lighter alternative.
+2. In GLTS Settings, click **Check models**, then download **Qwen2.5 7B** (about 5 GB). With 16 GB RAM or more, this is the recommended starting option. **Qwen2.5 3B** (about 2 GB) is a lighter alternative. **Qwen2.5 14B** (about 9 GB) is also available for comparison; 32 GB RAM is recommended for comfortable use. It may be slow with 16 GB, especially alongside speech recognition. Select 14B both in the Settings download menu and in the main translation model selector. It also works with optional dialect suggestions. A larger model does not guarantee better Sana’ani translations, and 14B translation quality has not been verified here.
 3. Select **Local language model (Ollama)** as the translation engine, choose the installed model, and translate Sana’ani text, TXT/PDF documents, or an audio transcript.
 
 GLTS communicates only with Ollama at `127.0.0.1:11434`, with proxy use disabled for this connection. Model downloads need internet, but translation stays local and requires no API key. Ollama chooses its own CPU/GPU resources; the GLTS CPU/CUDA setting controls Argos and speech inference. Make sure the selected model is installed before disconnecting. Translations of long documents are split into bounded chunks; context across chunks may be imperfect.

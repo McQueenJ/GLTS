@@ -161,13 +161,14 @@ def test_gui_settings(client):
         assert control in page
 
 
-def test_sanaani_text_uses_local_language_model(client, monkeypatch):
+@pytest.mark.parametrize('model', ['qwen2.5:7b', 'qwen2.5:14b'])
+def test_sanaani_text_uses_local_language_model(client, monkeypatch, model):
     calls = []
     monkeypatch.setattr(app, 'translate_local', lambda *args: calls.append(args) or 'I want to go home.')
-    response = client.post('/api/translate', data={'text': 'اشتي اروح البيت', 'source_language': 'ar-sanaa', 'language': 'en', 'engine': 'ollama', 'llm_model': 'qwen2.5:7b'})
+    response = client.post('/api/translate', data={'text': 'اشتي اروح البيت', 'source_language': 'ar-sanaa', 'language': 'en', 'engine': 'ollama', 'llm_model': model})
     assert response.status_code == 200
     assert response.json['translation'] == 'I want to go home.'
-    assert calls[0][1:] == ('ar-sanaa', 'English', 'qwen2.5:7b')
+    assert calls[0][1:] == ('ar-sanaa', 'English', model)
     response = client.post('/api/translate', data={'text': 'اشتي', 'source_language': 'ar-sanaa', 'language': 'en'})
     assert response.status_code == 400
     assert 'not dialect-specific' in response.json['error']
@@ -201,37 +202,39 @@ def test_optional_models_require_license_and_known_names(client, monkeypatch):
     assert status.json['job']['state'] == 'running'
 
 
-def test_background_model_download_updates_status(monkeypatch, tmp_path):
-    monkeypatch.setattr(app, 'installed_models', lambda: ['qwen2.5:7b'])
+@pytest.mark.parametrize('model', ['qwen2.5:7b', 'qwen2.5:14b'])
+def test_background_model_download_updates_status(monkeypatch, tmp_path, model):
+    monkeypatch.setattr(app, 'installed_models', lambda: [model])
     calls = []
     monkeypatch.setattr(app, 'ollama_request', lambda *args, **kwargs: calls.append(args) or {})
     monkeypatch.setattr(app, 'model_job', {'state': 'running'})
-    app.run_model_install('llm', 'qwen2.5:7b')
-    assert calls[0] == ('/api/pull', {'model': 'qwen2.5:7b', 'stream': False})
+    app.run_model_install('llm', model)
+    assert calls[0] == ('/api/pull', {'model': model, 'stream': False})
     assert app.model_job['state'] == 'complete'
     def failed(*args, **kwargs):
         raise ValueError('Connection refused')
     monkeypatch.setattr(app, 'ollama_request', failed)
-    app.run_model_install('llm', 'qwen2.5:7b')
+    app.run_model_install('llm', model)
     assert app.model_job['state'] == 'failed'
     assert 'Connection refused' in app.model_job['message']
 
 
-def test_local_llm_chunking_and_truncation(monkeypatch):
+@pytest.mark.parametrize('model', ['qwen2.5:7b', 'qwen2.5:14b'])
+def test_local_llm_chunking_and_truncation(monkeypatch, model):
     import local_models
-    monkeypatch.setattr(local_models, 'installed_models', lambda: ['qwen2.5:7b'])
+    monkeypatch.setattr(local_models, 'installed_models', lambda: [model])
     calls = []
     def chat(path, payload, **kwargs):
         calls.append(payload)
         return {'message': {'content': 'translated'}, 'done_reason': 'stop'}
     monkeypatch.setattr(local_models, 'ollama_request', chat)
-    result = local_models.translate_local('a' * 3000, 'ar-sanaa', 'English', 'qwen2.5:7b')
+    result = local_models.translate_local('a' * 3000, 'ar-sanaa', 'English', model)
     assert result == 'translated\ntranslated'
     assert 'Sana’ani' in calls[0]['messages'][0]['content']
     assert ''.join(p['messages'][1]['content'] for p in calls) == 'a' * 3000
     monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'message': {'content': 'cut off'}, 'done_reason': 'length'})
     with pytest.raises(ValueError, match='incomplete'):
-        local_models.translate_local('text', 'ar-sanaa', 'English', 'qwen2.5:7b')
+        local_models.translate_local('text', 'ar-sanaa', 'English', model)
 
 
 def test_real_sanaani_speech_inference_offline(monkeypatch):
@@ -323,13 +326,14 @@ def test_missing_dialect_model_does_not_block_detection(client, monkeypatch):
     assert 'unavailable' in response.json['warning']
 
 
-def test_dialect_suggestion_is_conservative(monkeypatch):
+@pytest.mark.parametrize('model', ['qwen2.5:7b', 'qwen2.5:14b'])
+def test_dialect_suggestion_is_conservative(monkeypatch, model):
     import detection
     import local_models
-    monkeypatch.setattr(local_models, 'installed_models', lambda: ['qwen2.5:7b'])
+    monkeypatch.setattr(local_models, 'installed_models', lambda: [model])
     for value, expected in [('unknown', None), ('other', None), ('sanaani', 'ar-sanaa')]:
         import json
         monkeypatch.setattr(local_models, 'ollama_request', lambda *args, value=value, **kwargs: {'message': {'content': json.dumps({'dialect': value})}})
-        assert detection.suggest_dialect('مرحبا', 'qwen2.5:7b') == expected
+        assert detection.suggest_dialect('مرحبا', model) == expected
     monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'message': {'content': 'not JSON'}})
-    assert detection.suggest_dialect('مرحبا', 'qwen2.5:7b') is None
+    assert detection.suggest_dialect('مرحبا', model) is None

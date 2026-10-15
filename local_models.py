@@ -4,7 +4,7 @@ import urllib.error
 import urllib.request
 
 OLLAMA_URL = 'http://127.0.0.1:11434'
-MODELS = {'qwen2.5:3b': 'Qwen2.5 3B (about 2 GB; lighter)', 'qwen2.5:7b': 'Qwen2.5 7B (about 5 GB; recommended for Arabic)'}
+MODELS = {'qwen2.5:3b': 'Qwen2.5 3B (about 2 GB; lighter)', 'qwen2.5:7b': 'Qwen2.5 7B (about 5 GB; recommended for Arabic)', 'qwen2.5:14b': 'Qwen2.5 14B (about 9 GB; higher memory use)'}
 
 
 def ollama_request(path, payload=None, timeout=15):
