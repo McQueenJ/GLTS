@@ -16,7 +16,7 @@ os.environ.setdefault('ARGOS_CHUNK_TYPE', 'MINISBD')
 os.environ.setdefault('HF_HUB_OFFLINE', '1')
 os.environ['ARGOS_MODEL_PROVIDER'] = 'OPENNMT'
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 from pypdf import PdfReader
 from speech_packs import SANAANI_ID, SANAANI_PATH, sanaani_installed
 from local_models import MODELS, installed_models, ollama_request, translate_local
@@ -410,6 +410,28 @@ def install_local_model():
         model_job.update(state='running', kind=kind, message='Downloading and preparing the model. This may take several minutes. Keep GLTS running.')
         Thread(target=run_model_install, args=(kind, model), daemon=True).start()
     return jsonify(message='Download started.'), 202
+
+
+@app.post('/api/export/pdf')
+def export_pdf():
+    if not request.is_json:
+        return jsonify(error='A JSON request is required.'), 400
+    data = request.get_json()
+    text = data.get('text') if isinstance(data, dict) else None
+    if not isinstance(text, str) or not text.strip():
+        return jsonify(error='Translate some text before saving a PDF.'), 400
+    if len(text) > 500000:
+        return jsonify(error='This translation is too long for PDF export. Use Save note (.txt).'), 400
+    try:
+        from pdf_export import translation_pdf
+        return send_file(io.BytesIO(translation_pdf(text)), mimetype='application/pdf', as_attachment=True, download_name='glts-translation.pdf')
+    except ModuleNotFoundError:
+        return jsonify(error='PDF export needs updated dependencies. Run pip install -r requirements.txt using the GLTS virtual environment, then restart GLTS. You can still use Save note (.txt).'), 500
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception:
+        app.logger.exception('PDF export failed')
+        return jsonify(error='Could not create a PDF. Check the GLTS launch window, or use Save note (.txt).'), 500
 
 
 @app.errorhandler(413)

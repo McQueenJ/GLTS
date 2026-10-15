@@ -24,7 +24,7 @@ python -m venv .venv
 .venv/bin/python app.py
 ```
 
-Use your local browser on port 5000. Select the source and target languages, type text, choose a file, or drag a text/PDF/audio file into the upload area, then translate. Upload one file at a time; click Remove file to return to typed text. The Clear button above the text box clears the input, translation, transcript, detection preview and selected file, then focuses the text box for your next paste. Language and model settings are retained. Results can be copied or downloaded as UTF-8 TXT. Arabic → English is included by the setup command. Language packs may support indirect translation through English; quality varies.
+Use your local browser on port 5000. Select the source and target languages, type text, choose a file, or drag a text/PDF/audio file into the upload area, then translate. Upload one file at a time; click Remove file to return to typed text. The Clear button above the text box clears the input, translation, transcript, detection preview and selected file, then focuses the text box for your next paste. Language and model settings are retained. Results can be copied or saved as a PDF or UTF-8 text note. Arabic → English is included by the setup command. Language packs may support indirect translation through English; quality varies.
 
 `prepare_models.py` is an explicitly online setup utility, never invoked by the app. Models are stored under `models/` and `.local/` and should be retained for offline use. Additional packs can be downloaded using `--languages` or installed from local `.argosmodel` files with `argostranslate.package.install_from_path`. The runtime uses only installed packs and the local speech model.
 
@@ -84,6 +84,14 @@ Manual source selection remains the default. Choose **Auto-detect (experimental)
 - Detection does not fetch models or send content outside your computer. Install dependencies before use with `.venv\Scripts\python.exe -m pip install -r requirements.txt` on Windows.
 
 If auto-detection is not useful, choose a source manually to bypass it. The Git tag `glts-before-auto-detect` preserves the prior version for a full rollback; keep your local settings and downloaded models when replacing source files.
+
+## Save translated results
+
+After translation, use **Save PDF** or **Save note (.txt)** beside Copy text. Your browser downloads the translated text as `glts-translation.pdf` or `glts-translation.txt`; the TXT note can be opened in Windows Notepad. These exports contain translated text, not the original document layout or audio.
+
+PDF export works locally, embeds the bundled DejaVu Sans font, preserves paragraph breaks, wraps long text across pages, and supports Arabic shaping and right-to-left alignment. Some scripts and symbols (such as CJK characters) are not covered by that font; GLTS reports this instead of dropping characters. Use the UTF-8 note option to preserve those characters. Font attribution/license is included in `assets/fonts/LICENSE.txt`.
+
+When updating, copy the new `pdf_export.py` and `assets` folder along with the other source files, then install updated requirements using `.venv\Scripts\python.exe -m pip install -r requirements.txt`. Restart GLTS and refresh with Ctrl+F5.
 
 ## Limits
 

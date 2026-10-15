@@ -17,12 +17,13 @@ function setTranslating(busy) {
 }
 const copy = document.querySelector('#copy');
 const download = document.querySelector('#download');
+const downloadPDF = document.querySelector('#download-pdf');
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (submit.disabled) return;
   setTranslating(true);
   output.value = '';
-  copy.disabled = download.disabled = true;
+  copy.disabled = download.disabled = downloadPDF.disabled = true;
   document.querySelector('#source-details').hidden = true;
   const file = document.querySelector('#file').files[0];
   status.textContent = 'Translating… Audio and long documents may take a few minutes.';
@@ -42,7 +43,7 @@ form.addEventListener('submit', async event => {
     document.querySelector('#source').textContent = data.source;
     document.querySelector('#source-details').hidden = false;
     status.textContent = `Translated into ${data.language}.`;
-    copy.disabled = download.disabled = false;
+    copy.disabled = download.disabled = downloadPDF.disabled = false;
   } catch (error) { status.textContent = error.message || 'Could not connect to the server.'; }
   finally { setTranslating(false); }
 });
@@ -261,7 +262,7 @@ clearText.addEventListener('click', () => {
   file.value = '';
   file.dispatchEvent(new Event('change', { bubbles: true }));
   output.value = '';
-  copy.disabled = download.disabled = true;
+  copy.disabled = download.disabled = downloadPDF.disabled = true;
   document.querySelector('#source').textContent = '';
   document.querySelector('#source-details').hidden = true;
   document.querySelector('#detection-preview').textContent = '';
@@ -269,4 +270,24 @@ clearText.addEventListener('click', () => {
   clearDetection();
   status.textContent = 'Cleared. Paste new text or choose a file to translate.';
   input.focus();
+});
+
+downloadPDF.addEventListener('click', async () => {
+  if (!output.value.trim()) return;
+  const text = output.value;
+  downloadPDF.disabled = true;
+  status.textContent = 'Preparing PDF…';
+  try {
+    const response = await fetch('/api/export/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Could not save the PDF.');
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a'); link.href = url; link.download = 'glts-translation.pdf'; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (output.value === text && !submit.disabled) status.textContent = 'PDF download started.';
+  } catch (error) {
+    if (output.value === text && !submit.disabled) status.textContent = error.message;
+  } finally { downloadPDF.disabled = submit.disabled || !output.value.trim(); }
 });

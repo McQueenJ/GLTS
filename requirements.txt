@@ -7,3 +7,5 @@ av==15.1.0
 transformers==4.51.3
 langid==1.1.6
 pycountry==24.6.1
+fpdf2==2.8.4
+uharfbuzz==0.52.0

@@ -386,3 +386,39 @@ def test_ollama_invalid_message_is_actionable(monkeypatch):
     monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'message': None})
     with pytest.raises(ValueError, match='empty or incomplete'):
         local_models.translate_local('مرحبا', 'ar-sanaa', 'English', 'qwen2.5:14b')
+
+
+def test_pdf_export_english_and_multipage(client):
+    from pypdf import PdfReader
+    text = 'Translation line with names and numbers 123.\n' * 90
+    response = client.post('/api/export/pdf', json={'text': text})
+    assert response.status_code == 200
+    assert response.mimetype == 'application/pdf'
+    assert 'attachment' in response.headers['Content-Disposition']
+    reader = PdfReader(io.BytesIO(response.data))
+    assert len(reader.pages) > 1
+    extracted = '\n'.join(page.extract_text() for page in reader.pages)
+    assert extracted.count('Translation line with names and numbers 123.') == 90
+
+
+def test_pdf_export_arabic_offline(client, monkeypatch):
+    def denied(*args, **kwargs):
+        raise AssertionError('PDF export attempted network access')
+    monkeypatch.setattr(socket.socket, 'connect', denied)
+    response = client.post('/api/export/pdf', json={'text': 'مرحبا بالعالم\nEnglish text 123'})
+    assert response.status_code == 200
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(response.data))
+    extracted = reader.pages[0].extract_text()
+    assert 'English text 123' in extracted
+    assert any('\u0600' <= char <= '\u06ff' for char in extracted)
+    assert '/Font' in reader.pages[0]['/Resources']
+
+
+def test_pdf_export_validation(client):
+    for payload in [{}, {'text': ''}, {'text': 123}, {'text': 'x' * 500001}]:
+        assert client.post('/api/export/pdf', json=payload).status_code == 400
+    response = client.post('/api/export/pdf', json={'text': '翻译'})
+    assert response.status_code == 400
+    assert 'Save note' in response.json['error']
+    assert client.post('/api/export/pdf', data={'text': 'hello'}).status_code == 400
