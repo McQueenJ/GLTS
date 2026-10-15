@@ -172,9 +172,12 @@ def translation():
             return run_translation(source, target)
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
-    except Exception:
+    except ModuleNotFoundError:
+        app.logger.exception('Missing translation dependency')
+        return jsonify(error='A required Python dependency is missing. Stop GLTS, open PowerShell in its folder, run .\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt, then restart GLTS.'), 500
+    except Exception as exc:
         app.logger.exception('Local translation failed')
-        return jsonify(error='Local translation failed. Check the models. For CUDA, verify CUDA 12 and cuDNN 9, or switch to CPU in Settings.'), 500
+        return jsonify(error=f'Translation failed unexpectedly ({type(exc).__name__}). Copy the error traceback from the GLTS launch window so the cause can be diagnosed. Ollama manages its GPU independently of the GLTS CUDA setting.'), 500
 
 
 def run_translation(source, target):

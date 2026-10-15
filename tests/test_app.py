@@ -337,3 +337,52 @@ def test_dialect_suggestion_is_conservative(monkeypatch, model):
         assert detection.suggest_dialect('مرحبا', model) == expected
     monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'message': {'content': 'not JSON'}})
     assert detection.suggest_dialect('مرحبا', model) is None
+
+
+def test_ollama_http_error_details_reach_gui(client, monkeypatch):
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import local_models
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps({'models': [{'name': 'qwen2.5:14b'}]}).encode())
+        def do_POST(self):
+            self.rfile.read(int(self.headers['Content-Length']))
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': 'model requires more system memory than is available'}).encode())
+    server = HTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setattr(local_models, 'OLLAMA_URL', f'http://127.0.0.1:{server.server_port}')
+    try:
+        response = client.post('/api/translate', data={'text': 'أنا حوثي من زمان يغالي', 'source_language': 'ar-sanaa', 'language': 'en', 'engine': 'ollama', 'llm_model': 'qwen2.5:14b'})
+        assert response.status_code == 400
+        assert 'model requires more system memory' in response.json['error']
+        assert 'CUDA 12' not in response.json['error']
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+def test_missing_dependency_actionable(client, monkeypatch):
+    def missing(*args):
+        raise ModuleNotFoundError('No module named pycountry')
+    monkeypatch.setattr(app, 'translate_local', missing)
+    response = client.post('/api/translate', data={'text': 'مرحبا', 'source_language': 'ar-sanaa', 'language': 'en', 'engine': 'ollama'})
+    assert response.status_code == 500
+    assert 'pip install -r requirements.txt' in response.json['error']
+
+
+def test_ollama_invalid_message_is_actionable(monkeypatch):
+    import local_models
+    monkeypatch.setattr(local_models, 'installed_models', lambda: ['qwen2.5:14b'])
+    monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'message': None})
+    with pytest.raises(ValueError, match='empty or incomplete'):
+        local_models.translate_local('مرحبا', 'ar-sanaa', 'English', 'qwen2.5:14b')

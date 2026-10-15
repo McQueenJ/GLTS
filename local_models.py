@@ -1,5 +1,7 @@
 """Ollama connections are restricted to the local workstation."""
 import json
+import http.client
+import socket
 import urllib.error
 import urllib.request
 
@@ -13,8 +15,21 @@ def ollama_request(path, payload=None, timeout=15):
     try:
         with opener.open(request, timeout=timeout) as response:
             result = json.load(response)
-    except (OSError, ValueError, urllib.error.URLError) as exc:
+    except urllib.error.HTTPError as exc:
+        try:
+            details = json.loads(exc.read(8192)).get('error', '')
+        except (ValueError, AttributeError):
+            details = ''
+        message = str(details) if details else f'HTTP {exc.code}'
+        raise ValueError('Ollama reported: ' + message + '. Check that the selected model is installed and that enough RAM/VRAM is available. Try 7B if 14B cannot load.') from exc
+    except (socket.timeout, TimeoutError) as exc:
+        raise ValueError('Ollama took too long to respond. The model may still be loading or running slowly on CPU. Check ollama ps, or try the smaller 7B model.') from exc
+    except (OSError, urllib.error.URLError, http.client.HTTPException) as exc:
         raise ValueError('Could not reach local Ollama. Install/start Ollama on this computer and download the selected model in Settings.') from exc
+    except ValueError as exc:
+        raise ValueError('Ollama returned an unreadable response. Restart Ollama and try again.') from exc
+    if not isinstance(result, dict):
+        raise ValueError('Ollama returned an unexpected response. Restart Ollama and try again.')
     if result.get('error'):
         raise ValueError('Ollama could not complete the request: ' + str(result['error']))
     return result
@@ -50,7 +65,9 @@ def translate_local(text, source, target, model):
             ],
             'options': {'temperature': 0, 'num_ctx': 8192, 'num_predict': 4096},
         }, timeout=900)
-        translated = result.get('message', {}).get('content', '').strip()
+        message = result.get('message')
+        content = message.get('content') if isinstance(message, dict) else None
+        translated = content.strip() if isinstance(content, str) else ''
         if not translated or result.get('done_reason') == 'length':
             raise ValueError('The local model returned an empty or incomplete translation. Try a shorter passage.')
         results.append(translated)

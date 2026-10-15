@@ -101,3 +101,9 @@ If auto-detection is not useful, choose a source manually to bypass it. The Git 
 ```
 
 Tests cover GUI rendering, upload handling, validation, transcription integration, and real Arabic translation with network connections blocked when its pack is installed.
+
+## Troubleshooting missing Python packages
+
+If the launch window shows `ModuleNotFoundError`, stop GLTS and open PowerShell in the same folder as `launch-windows.cmd`. Run `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`, then restart. For example, `pycountry` is required by language validation and experimental source detection; copying updated source files alone does not install it. This error occurs before the translation model is called and is unrelated to CUDA.
+
+Ollama errors are reported separately, including model-loading or memory errors. Check `ollama list` for installed models and `ollama ps` for running models. If 14B cannot fit in memory, try 7B.
