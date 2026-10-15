@@ -1,4 +1,4 @@
-# Global Language Translation Tool (GLTS)
+# Global Language Translation Service (GLTS)
 
 An offline web GUI for translating text, selectable-text PDFs, and audio. Translation uses local Argos Translate language packs. Speech recognition uses a local multilingual Whisper model on CPU. Translation and transcription work offline. Settings can explicitly download additional language packs while online; no API key is needed. All fonts, scripts, and styles are local.
 
