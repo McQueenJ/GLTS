@@ -422,3 +422,13 @@ def test_pdf_export_validation(client):
     assert response.status_code == 400
     assert 'Save note' in response.json['error']
     assert client.post('/api/export/pdf', data={'text': 'hello'}).status_code == 400
+
+
+def test_branding_logo_served_locally(client):
+    page = client.get('/').get_data(as_text=True)
+    assert '/branding/glts-logo.png' in page
+    assert 'GLTS — Global Language Translation Service' in page
+    response = client.get('/branding/glts-logo.png')
+    assert response.status_code == 200
+    assert response.mimetype == 'image/png'
+    assert response.data.startswith(b'\x89PNG\r\n\x1a\n')

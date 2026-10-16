@@ -1,9 +1,13 @@
-# GLTS Windows source package
+# GLTS v0.1.0 Windows source release
 
-`GLTS-Windows.zip` contains the latest application source, Windows install/launch scripts, documentation and tests. It includes experimental language detection with manual review, local language-model integration, optional Sana’ani speech recognition, OPUS support and drag-and-drop uploads.
+- `GLTS-v0.1.0-Windows.zip`: versioned source package.
+- `GLTS-Windows.zip`: the same package under the existing download filename.
+- `SHA256SUMS`: checksums for both ZIP filenames.
 
-Extract the ZIP and follow `GLTS/README.md`. This is a source distribution, not a standalone executable. Python 3.12 is required. Initial setup downloads dependencies and models. Local environments, settings, credentials, and downloaded models are excluded.
+The package includes all application source, the GLTS logo, the PDF font and license, Windows install/launch scripts, release notes, documentation and tests. It excludes local environments, settings, credentials and downloaded model weights. This is not a standalone EXE.
 
-For an existing installation, stop GLTS and copy the source files into its existing folder while retaining `.venv`, `.local`, and `models`. Update dependencies with `.venv\Scripts\python.exe -m pip install -r requirements.txt`, restart, and refresh the browser with Ctrl+F5. Ollama must be installed separately for local language-model translation and dialect suggestions.
+Read `RELEASE_NOTES.md` and `README.md` inside the extracted GLTS folder for installation and upgrade instructions. Keep `.venv`, `.local`, and `models` when updating, and run the dependency installation command before restarting. Ollama is installed separately for local language-model translation.
 
-To bypass experimental detection, select the source language manually. For a full rollback, the GitHub tag `glts-before-auto-detect` retains the previously working source and package. Preserve local settings and models when reverting.
+The release tag is `v0.1.0`. The tag `glts-before-auto-detect` retains the earlier version without experimental source detection.
+
+To verify a downloaded archive in Windows PowerShell, use `Get-FileHash .\GLTS-v0.1.0-Windows.zip -Algorithm SHA256` and compare it to `SHA256SUMS`.

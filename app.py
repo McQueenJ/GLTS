@@ -157,6 +157,11 @@ def ui_languages():
     return list(installed.values())
 
 
+@app.get('/branding/glts-logo.png')
+def branding_logo():
+    return send_file(ROOT / 'assets/branding/glts-logo.png', mimetype='image/png')
+
+
 @app.get('/')
 def index():
     installed = ui_languages()
