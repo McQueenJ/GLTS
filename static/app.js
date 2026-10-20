@@ -1,5 +1,7 @@
 let maxUploadMB = 25;
 const form = document.querySelector('#translate-form');
+const taskMode = document.querySelector('#task-mode');
+let resultKind = 'translation';
 const output = document.querySelector('#output');
 const status = document.querySelector('#status');
 const submit = document.querySelector('#submit');
@@ -10,10 +12,12 @@ const translateArrow = document.querySelector('#translate-arrow');
 function setTranslating(busy) {
   submit.disabled = busy;
   clearText.disabled = busy;
+  taskMode.disabled = busy;
   submit.setAttribute('aria-busy', String(busy));
   spinner.hidden = !busy;
   translateArrow.hidden = busy;
-  translateLabel.textContent = busy ? 'Translating…' : 'Translate';
+  const transcribing = taskMode.value === 'transcribe';
+  translateLabel.textContent = busy ? (transcribing ? 'Transcribing…' : 'Translating…') : (transcribing ? 'Transcribe' : 'Translate');
 }
 const copy = document.querySelector('#copy');
 const download = document.querySelector('#download');
@@ -26,34 +30,36 @@ form.addEventListener('submit', async event => {
   copy.disabled = download.disabled = downloadPDF.disabled = true;
   document.querySelector('#source-details').hidden = true;
   const file = document.querySelector('#file').files[0];
-  status.textContent = 'Translating… Audio and long documents may take a few minutes.';
+  const transcribing = taskMode.value === 'transcribe';
+  status.textContent = transcribing ? 'Transcribing audio locally… This may take a few minutes.' : 'Translating… Audio and long documents may take a few minutes.';
   try {
     await loadUploadSettings();
     if (file && file.size > maxUploadMB * 1024 * 1024) { status.textContent = `Files must be smaller than ${maxUploadMB} MB.`; return; }
     if (document.querySelector('#source_language').value === 'auto') {
       translateLabel.textContent = 'Detecting…';
-      status.textContent = 'Detecting the language locally… Review the result before translating.';
+      status.textContent = 'Detecting the language locally… Review the result before continuing.';
       await detectSource(new FormData(form));
       return;
     }
-    const response = await fetch('/api/translate', { method: 'POST', body: new FormData(form) });
+    const response = await fetch(transcribing ? '/api/transcribe' : '/api/translate', { method: 'POST', body: new FormData(form) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Translation failed.');
-    output.value = data.translation;
-    document.querySelector('#source').textContent = data.source;
-    document.querySelector('#source-details').hidden = false;
-    status.textContent = `Translated into ${data.language}.`;
+    resultKind = transcribing ? 'transcript' : 'translation';
+    output.value = transcribing ? data.transcript : data.translation;
+    document.querySelector('#source').textContent = data.source || '';
+    document.querySelector('#source-details').hidden = transcribing;
+    status.textContent = transcribing ? 'Transcription complete. Review the transcript before saving.' : `Translated into ${data.language}.`;
     copy.disabled = download.disabled = downloadPDF.disabled = false;
   } catch (error) { status.textContent = error.message || 'Could not connect to the server.'; }
   finally { setTranslating(false); }
 });
 copy.addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(output.value); status.textContent = 'Translation copied.'; }
-  catch { output.focus(); output.select(); status.textContent = 'Select and copy the translation manually.'; }
+  try { await navigator.clipboard.writeText(output.value); status.textContent = resultKind === 'transcript' ? 'Transcript copied.' : 'Translation copied.'; }
+  catch { output.focus(); output.select(); status.textContent = 'Select and copy the text manually.'; }
 });
 download.addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([output.value], { type: 'text/plain;charset=utf-8' }));
-  const link = document.createElement('a'); link.href = url; link.download = 'glts-translation.txt'; link.click();
+  const link = document.createElement('a'); link.href = url; link.download = `glts-${resultKind}.txt`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
@@ -244,14 +250,14 @@ async function detectSource(body) {
   document.querySelector('#detection-warning').textContent = `Detected language: ${data.name}. ${data.warning}`;
   document.querySelector('#detection-preview').textContent = data.preview;
   detectionReview.hidden = false;
-  status.textContent = 'Review the detected source, then click Confirm source language. Translation has not started.';
+  status.textContent = 'Review the detected source, then click Confirm source language. Processing has not started.';
 }
 document.querySelector('#confirm-detection').addEventListener('click', () => {
   if (detectionReview.hidden || submit.disabled) return;
   if (!Array.from(sourceSelect.options).some(option => option.value === detectedSource.value)) sourceSelect.add(new Option(detectedSource.selectedOptions[0].textContent, detectedSource.value));
   sourceSelect.value = detectedSource.value;
   showAutoOptions();
-  status.textContent = 'Source confirmed. Click Translate to continue, or choose another source manually.';
+  status.textContent = 'Source confirmed. Click the main action button to continue, or choose another source manually.';
 });
 
 clearText.addEventListener('click', () => {
@@ -268,26 +274,44 @@ clearText.addEventListener('click', () => {
   document.querySelector('#detection-preview').textContent = '';
   document.querySelector('#detection-warning').textContent = '';
   clearDetection();
-  status.textContent = 'Cleared. Paste new text or choose a file to translate.';
+  status.textContent = taskMode.value === 'transcribe' ? 'Cleared. Choose an audio file to transcribe.' : 'Cleared. Paste new text or choose a file to translate.';
   input.focus();
 });
 
 downloadPDF.addEventListener('click', async () => {
   if (!output.value.trim()) return;
   const text = output.value;
+  const kind = resultKind;
   downloadPDF.disabled = true;
   status.textContent = 'Preparing PDF…';
   try {
-    const response = await fetch('/api/export/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    const response = await fetch('/api/export/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, kind }) });
     if (!response.ok) {
       const data = await response.json();
       throw new Error(data.error || 'Could not save the PDF.');
     }
     const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement('a'); link.href = url; link.download = 'glts-translation.pdf'; link.click();
+    const link = document.createElement('a'); link.href = url; link.download = `glts-${kind}.pdf`; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     if (output.value === text && !submit.disabled) status.textContent = 'PDF download started.';
   } catch (error) {
     if (output.value === text && !submit.disabled) status.textContent = error.message;
   } finally { downloadPDF.disabled = submit.disabled || !output.value.trim(); }
+});
+
+taskMode.addEventListener('change', () => {
+  const transcribing = taskMode.value === 'transcribe';
+  document.querySelector('#translation-controls').hidden = transcribing;
+  document.querySelector('#result-title').textContent = transcribing ? 'Your transcript' : 'Your translation';
+  output.setAttribute('aria-label', transcribing ? 'Transcript' : 'Translated text');
+  output.placeholder = transcribing ? 'Your original-language transcript will appear here.' : 'A new language. The same meaning.';
+  document.querySelector('#task-hint').textContent = transcribing ? 'Upload audio to get its original-language transcript. No translation pack or Ollama is required.' : 'Translate text, documents, or audio into another language.';
+  document.querySelector('#dialect-note').textContent = transcribing ? 'Choose the spoken language. Sana’ani uses the optional Yemeni speech model. Auto-detect lets you review the source first.' : 'Sana’ani audio uses the optional Yemeni speech pack. Select the local language model for written dialect translation. Accuracy needs review.';
+  output.value = '';
+  document.querySelector('#source').textContent = '';
+  document.querySelector('#source-details').hidden = true;
+  copy.disabled = download.disabled = downloadPDF.disabled = true;
+  clearDetection();
+  setTranslating(false);
+  status.textContent = transcribing ? 'Upload audio, choose the spoken language, then click Transcribe.' : 'Your translated text will appear here.';
 });

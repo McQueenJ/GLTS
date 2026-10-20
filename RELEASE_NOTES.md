@@ -1,3 +1,13 @@
+# Global Language Translation Service (GLTS) v0.1.1
+
+Adds a **Transcribe audio only** task. Original-language transcripts can be copied or saved as UTF-8 notes or PDF files, without invoking a translation engine. It uses the existing Whisper model and optional Sana’ani/Yemeni speech pack. Translation remains the default task.
+
+Validated with 44 passing automated tests (one model-dependent Arabic-pack test skipped) and browser checks for switching tasks, displaying a transcript, downloading a text note and PDF, and returning to translation. The browser speech response was mocked; the PDF request used the real export endpoint. Previously installed speech inference is covered by the existing offline model test. Windows and CUDA behavior have not been independently validated here.
+
+This update adds no new dependencies. To install or update, follow the Windows instructions below, preserving `.venv`, `.local`, and `models`.
+
+---
+
 # Global Language Translation Service (GLTS) v0.1.0
 
 This source release includes the GLTS logo in the application header, with readable presentation in light and dark mode and a layout that adapts to narrow screens.

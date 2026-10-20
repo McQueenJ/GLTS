@@ -9,3 +9,4 @@ dialog a{color:#147d70}html[data-theme=dark] dialog a{color:#b0e8d7}#local-model
 .actions{flex-wrap:wrap}
 
 .brand{flex:1;min-width:0}.brand-logo{width:min(440px,100%);padding:12px;background:#fff;border:1px solid #e3e9ed;border-radius:14px}.brand-logo img{display:block;width:100%;height:auto}.brand p{margin-top:12px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}html[data-theme=dark] .brand-logo{background:#fff;border-color:#41535e}@media(max-width:720px){header .brand{flex-basis:100%}.brand-logo{width:min(440px,100%)}}
+#translation-controls[hidden]{display:none}

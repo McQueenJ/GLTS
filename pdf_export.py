@@ -5,7 +5,7 @@ from pathlib import Path
 FONT_PATH = Path(__file__).resolve().parent / 'assets/fonts/DejaVuSans.ttf'
 
 
-def translation_pdf(text):
+def translation_pdf(text, kind='translation'):
     from fpdf import FPDF
     from fontTools.ttLib import TTFont
     text = text.replace('\r\n', '\n').replace('\r', '\n').replace('\t', '    ')
@@ -14,7 +14,7 @@ def translation_pdf(text):
         if any(ord(char) not in supported for char in text if char != '\n'):
             raise ValueError('The PDF font does not support some characters in this translation. Use Save note (.txt) to preserve the full text.')
     pdf = FPDF()
-    pdf.set_title('GLTS translation')
+    pdf.set_title('GLTS transcript' if kind == 'transcript' else 'GLTS translation')
     pdf.set_author('Global Language Translation Service')
     pdf.set_margins(18, 18, 18)
     pdf.set_auto_page_break(auto=True, margin=18)

@@ -432,3 +432,40 @@ def test_branding_logo_served_locally(client):
     assert response.status_code == 200
     assert response.mimetype == 'image/png'
     assert response.data.startswith(b'\x89PNG\r\n\x1a\n')
+
+
+@pytest.mark.parametrize('source', ['ar', 'ar-sanaa', 'auto'])
+def test_transcription_only_does_not_translate(client, monkeypatch, source):
+    calls = []
+    def transcribe(data, language):
+        calls.append(language)
+        return 'مرحبا بالعالم', SimpleNamespace(language='ar')
+    def forbidden(*args):
+        raise AssertionError('Transcription must not call a translation engine')
+    monkeypatch.setattr(app, 'transcribe_audio', transcribe)
+    monkeypatch.setattr(app, 'translate', forbidden)
+    monkeypatch.setattr(app, 'translate_local', forbidden)
+    response = client.post('/api/transcribe', data={'source_language': source, 'file': (io.BytesIO(b'audio'), 'speech.opus')})
+    assert response.status_code == 200
+    assert response.json['transcript'] == 'مرحبا بالعالم'
+    assert 'translation' not in response.json
+    assert calls == [source]
+
+
+def test_transcription_requires_audio_and_speech(client, monkeypatch):
+    assert client.post('/api/transcribe', data={'text': 'hello', 'source_language': 'en'}).status_code == 400
+    assert client.post('/api/transcribe', data={'source_language': 'en', 'file': (io.BytesIO(b'hello'), 'notes.txt')}).status_code == 400
+    monkeypatch.setattr(app, 'transcribe_audio', lambda *_: ('', SimpleNamespace(language='en')))
+    response = client.post('/api/transcribe', data={'source_language': 'en', 'file': (io.BytesIO(b'audio'), 'silent.wav')})
+    assert response.status_code == 400
+    assert 'No speech' in response.json['error']
+
+
+def test_transcript_pdf_filename_and_title(client):
+    response = client.post('/api/export/pdf', json={'text': 'An original language transcript.', 'kind': 'transcript'})
+    assert response.status_code == 200
+    assert 'glts-transcript.pdf' in response.headers['Content-Disposition']
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(response.data))
+    assert reader.metadata.title == 'GLTS transcript'
+    assert 'original language transcript' in reader.pages[0].extract_text()

@@ -93,6 +93,12 @@ PDF export works locally, embeds the bundled DejaVu Sans font, preserves paragra
 
 When updating, copy the new `pdf_export.py` and `assets` folder along with the other source files, then install updated requirements using `.venv\Scripts\python.exe -m pip install -r requirements.txt`. Restart GLTS and refresh with Ctrl+F5.
 
+## Transcription without translation
+
+Choose **Transcribe audio only** in the Task selector. Upload an audio file (including OPUS), choose the spoken language, and click **Transcribe**. The original-language transcript appears in the output panel; use Copy text, Save note (.txt) or Save PDF to retain it. Transcript filenames are `glts-transcript.txt` and `glts-transcript.pdf`.
+
+Transcription uses the installed local Whisper model. Choosing Sana’ani uses the optional Yemeni speech model. It needs no Argos translation pack or Ollama model. Auto-detect still supports the source-review step; optional dialect suggestions in that step use Ollama if enabled. Transcript accuracy depends on the recording and model, so review it before use. Switching back to Translate restores translation controls and clears the displayed result; your input/file remains selected.
+
 ## Limits
 
 - Uploaded files: up to the limit chosen in Settings (25 MB by default). Extracted text: up to 100,000 characters.

@@ -210,6 +210,35 @@ def run_translation(source, target):
     return jsonify(translation=result, source=text, language=target)
 
 
+@app.post('/api/transcribe')
+def transcription():
+    try:
+        with inference_lock:
+            upload = request.files.get('file')
+            if not upload or Path(upload.filename or '').suffix.lower() not in AUDIO:
+                raise ValueError('Upload a supported audio file to transcribe, including OPUS, MP3, WAV, M4A or WEBM.')
+            source = request.form.get('source_language', '')
+            if source not in ('auto', 'ar-sanaa') and not language_name(source):
+                raise ValueError('Choose the spoken language or Auto-detect.')
+            data = upload.read()
+            if not data:
+                raise ValueError('The uploaded file is empty.')
+            text, info = transcribe_audio(data, source)
+            if not text.strip():
+                raise ValueError('No speech was found. Try a clearer recording or choose the spoken language manually.')
+            if len(text) > 500000:
+                raise ValueError('The transcript is too long. Split the recording into smaller files.')
+            code = info.language if source == 'auto' else ('ar' if source == 'ar-sanaa' else source)
+            return jsonify(transcript=text, language=code)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except ModuleNotFoundError:
+        return jsonify(error='A required dependency is missing. Install requirements.txt using the GLTS virtual environment, then restart.'), 500
+    except Exception:
+        app.logger.exception('Local transcription failed')
+        return jsonify(error='Transcription failed. Check the speech model and GLTS launch window. Ollama is not needed for transcription.'), 500
+
+
 @app.post('/api/detect')
 def detect_source():
     try:
@@ -424,12 +453,13 @@ def export_pdf():
     data = request.get_json()
     text = data.get('text') if isinstance(data, dict) else None
     if not isinstance(text, str) or not text.strip():
-        return jsonify(error='Translate some text before saving a PDF.'), 400
+        return jsonify(error='Create a translation or transcript before saving a PDF.'), 400
     if len(text) > 500000:
         return jsonify(error='This translation is too long for PDF export. Use Save note (.txt).'), 400
     try:
         from pdf_export import translation_pdf
-        return send_file(io.BytesIO(translation_pdf(text)), mimetype='application/pdf', as_attachment=True, download_name='glts-translation.pdf')
+        kind = 'transcript' if data.get('kind') == 'transcript' else 'translation'
+        return send_file(io.BytesIO(translation_pdf(text, kind=kind)), mimetype='application/pdf', as_attachment=True, download_name=f'glts-{kind}.pdf')
     except ModuleNotFoundError:
         return jsonify(error='PDF export needs updated dependencies. Run pip install -r requirements.txt using the GLTS virtual environment, then restart GLTS. You can still use Save note (.txt).'), 500
     except ValueError as exc:
