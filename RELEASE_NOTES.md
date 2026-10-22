@@ -1,5 +1,6 @@
-# Global Language Translation Service (GLTS) v0.1.3
+# Global Language Translation Service (GLTS) v0.1.4
 
+- Preserves the latest README cleanup from GitHub main.
 - Adds an MIT license for original GLTS source, third-party notices, retained dependency/model license texts, and an inventory of 83 dependencies from the tested environment.
 - Removes Qwen2.5 3B from downloads, translation, dialect suggestions and saved model selection. Qwen2.5 7B/14B remain available.
 - Pins MIT-licensed Argos 1.10.0 and adds a local sentence-splitter adapter to avoid MiniSBD, an AGPL dependency of Argos 1.11. Standard Argos downloads and existing installed language packs remain available.
