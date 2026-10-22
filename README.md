@@ -45,12 +45,6 @@ Stop GLTS, download the latest GitHub ZIP, and copy its source files into your e
 
 Choose **Sana’ani Arabic (Yemen)** as the source language.
 
-### Audio
-
-All audio is transcribed with the standard local Whisper model. Selecting Sana’ani uses Arabic transcription; there is no dedicated dialect speech pack or speech-pack download. For dialect-sensitive translation of the transcript, select **Local language model (Ollama)**.
-
-If updating from an earlier version, previously downloaded `models/whisper-yemeni` files are not used or deleted automatically. You may remove that folder to reclaim disk space. The old `prepare_sanaani.py` and `speech_packs.py` source files can also be removed from an existing installation; they are no longer included in the current source package. Keep `models/whisper-tiny` for normal transcription.
-
 ### Written text and transcripts
 
 1. Install [Ollama for Windows](https://ollama.com/download/windows) and keep it running locally.
