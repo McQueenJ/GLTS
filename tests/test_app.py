@@ -174,32 +174,32 @@ def test_sanaani_text_uses_local_language_model(client, monkeypatch, model):
     assert 'not dialect-specific' in response.json['error']
 
 
-def test_sanaani_audio_routes_to_dedicated_model(client, monkeypatch):
+def test_sanaani_audio_uses_standard_whisper(client, monkeypatch):
     calls = []
     class Speech:
         def transcribe(self, audio, **kwargs):
             calls.append(kwargs)
             return [SimpleNamespace(text='اشتي اروح البيت')], None
-    monkeypatch.setattr(app, 'load_speech_model', lambda mode, pack: calls.append((mode, pack)) or Speech())
+    monkeypatch.setattr(app, 'speech_model', lambda: Speech())
     monkeypatch.setattr(app, 'translate', lambda text, source, target: 'I want to go home.' if source == 'ar' else None)
     response = client.post('/api/translate', data={'source_language': 'ar-sanaa', 'language': 'en', 'file': (io.BytesIO(b'audio'), 'sanaa.opus')})
     assert response.status_code == 200
-    assert calls[0] == ('cpu', app.SANAANI_ID)
-    assert calls[1]['language'] == 'ar'
+    assert calls[0]['language'] == 'ar'
     assert response.json['source'] == 'اشتي اروح البيت'
 
 
-def test_optional_models_require_license_and_known_names(client, monkeypatch):
-    monkeypatch.setattr(app, 'sanaani_installed', lambda: False)
+def test_retired_speech_pack_is_rejected_and_llm_download_remains(client, monkeypatch):
     monkeypatch.setattr(app, 'installed_models', lambda: [])
     assert client.post('/api/local-models/install', json={'kind': 'speech'}).status_code == 400
     assert client.post('/api/local-models/install', json={'kind': 'llm', 'model': 'untrusted/model'}).status_code == 400
     assert client.post('/api/local-models/install', json={'kind': 'speech', 'accept_license': True}, headers={'Origin': 'https://example.com'}).status_code == 403
     monkeypatch.setitem(app.model_job, 'state', 'running')
-    assert client.post('/api/local-models/install', json={'kind': 'speech', 'accept_license': True}).status_code == 409
+    assert client.post('/api/local-models/install', json={'kind': 'speech', 'accept_license': True}).status_code == 400
+    assert client.post('/api/local-models/install', json={'kind': 'llm', 'model': 'qwen2.5:7b'}).status_code == 409
     status = client.get('/api/local-models')
     assert status.status_code == 200
     assert status.json['job']['state'] == 'running'
+    assert 'speech_installed' not in status.json
 
 
 @pytest.mark.parametrize('model', ['qwen2.5:7b', 'qwen2.5:14b'])
@@ -237,9 +237,9 @@ def test_local_llm_chunking_and_truncation(monkeypatch, model):
         local_models.translate_local('text', 'ar-sanaa', 'English', model)
 
 
-def test_real_sanaani_speech_inference_offline(monkeypatch):
-    if not app.sanaani_installed():
-        pytest.skip('Optional Sana’ani speech pack is not installed')
+def test_real_standard_speech_inference_offline(monkeypatch):
+    if not (app.ROOT / 'models/whisper-tiny/model.bin').exists():
+        pytest.skip('Standard Whisper model is not installed')
     import wave
     buffer = io.BytesIO()
     with wave.open(buffer, 'wb') as audio:
@@ -251,7 +251,7 @@ def test_real_sanaani_speech_inference_offline(monkeypatch):
     def denied(*args, **kwargs):
         raise AssertionError('Network attempted during speech inference')
     monkeypatch.setattr(socket.socket, 'connect', denied)
-    model = app.load_speech_model('cpu', app.SANAANI_ID)
+    model = app.load_speech_model('cpu')
     segments, info = model.transcribe(buffer, language='ar', beam_size=1)
     assert isinstance(list(segments), list)
     assert info.language == 'ar'
@@ -469,3 +469,11 @@ def test_transcript_pdf_filename_and_title(client):
     reader = PdfReader(io.BytesIO(response.data))
     assert reader.metadata.title == 'GLTS transcript'
     assert 'original language transcript' in reader.pages[0].extract_text()
+
+
+def test_speech_pack_controls_removed(client):
+    page = client.get('/').get_data(as_text=True)
+    assert 'install-speech' not in page
+    assert 'speech-license' not in page
+    assert 'Sana’ani Arabic (Yemen)' in page
+    assert 'standard Whisper' in page

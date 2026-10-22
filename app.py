@@ -2,8 +2,6 @@ import io
 import json
 import os
 import re
-import subprocess
-import sys
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock, RLock, Thread
@@ -18,7 +16,6 @@ os.environ['ARGOS_MODEL_PROVIDER'] = 'OPENNMT'
 
 from flask import Flask, jsonify, render_template, request, send_file
 from pypdf import PdfReader
-from speech_packs import SANAANI_ID, SANAANI_PATH, sanaani_installed
 from local_models import MODELS, installed_models, ollama_request, translate_local
 from detection import detect_text, language_name, suggest_dialect
 
@@ -69,11 +66,11 @@ def speech_model():
 
 
 @lru_cache(maxsize=2)
-def load_speech_model(mode, pack='default'):
+def load_speech_model(mode):
     from faster_whisper import WhisperModel
-    path = SANAANI_PATH if pack == SANAANI_ID else ROOT / 'models/whisper-tiny'
+    path = ROOT / 'models/whisper-tiny'
     if not (path / 'model.bin').exists():
-        raise ValueError('Download the Sana’ani speech pack in Settings first.' if pack == SANAANI_ID else 'Install the local speech model using prepare_models.py before translating audio.')
+        raise ValueError('Install the local Whisper speech model using prepare_models.py before translating audio.')
     return WhisperModel(str(path), device=mode, compute_type='float16' if mode == 'cuda' else 'int8', local_files_only=True, cpu_threads=2)
 
 
@@ -104,7 +101,7 @@ def extract_text(upload, source):
 
 def transcribe_audio(data, source):
     try:
-        model = load_speech_model(compute_mode(), SANAANI_ID) if source == 'ar-sanaa' else speech_model()
+        model = speech_model()
         language = None if source == 'auto' else ('ar' if source == 'ar-sanaa' else source)
         segments, info = model.transcribe(io.BytesIO(data), language=language, beam_size=1)
         return ' '.join(segment.text.strip() for segment in segments), info
@@ -383,16 +380,9 @@ model_job = dict(state='idle', message='', kind='')
 
 def run_model_install(kind, model):
     try:
-        if kind == 'speech':
-            with (ROOT / '.local/sanaani-install.log').open('w', encoding='utf-8') as log:
-                process = subprocess.Popen([sys.executable, str(ROOT / 'prepare_sanaani.py'), '--accept-noncommercial-license'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
-                code = process.wait()
-            if code or not sanaani_installed():
-                raise ValueError('Speech installation failed. Check internet access, free disk space, and .local/sanaani-install.log. Run pip install -r requirements.txt if dependencies are missing.')
-        else:
-            ollama_request('/api/pull', {'model': model, 'stream': False}, timeout=3600)
-            if model not in installed_models():
-                raise ValueError('Ollama did not finish installing the selected model.')
+        ollama_request('/api/pull', {'model': model, 'stream': False}, timeout=3600)
+        if model not in installed_models():
+            raise ValueError('Ollama did not finish installing the selected model.')
         with model_job_lock:
             model_job.update(state='complete', message='Model installed and ready for offline use.')
     except Exception as exc:
@@ -411,7 +401,7 @@ def local_model_status():
     except ValueError:
         installed = []
         connected = False
-    return jsonify(speech_installed=sanaani_installed(), ollama_connected=connected, installed_models=installed, job=job)
+    return jsonify(ollama_connected=connected, installed_models=installed, job=job)
 
 
 @app.post('/api/local-models/install')
@@ -425,12 +415,7 @@ def install_local_model():
         return jsonify(error='Choose a supported model.'), 400
     kind = data.get('kind')
     model = data.get('model')
-    if kind == 'speech':
-        if data.get('accept_license') is not True:
-            return jsonify(error='Accept the noncommercial speech-model license before downloading.'), 400
-        if sanaani_installed():
-            return jsonify(message='Speech model already installed.'), 200
-    elif kind == 'llm' and model in MODELS:
+    if kind == 'llm' and model in MODELS:
         try:
             installed_models()
         except ValueError as exc:

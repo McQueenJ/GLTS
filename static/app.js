@@ -184,7 +184,6 @@ engine.addEventListener('change', () => { showEngine(); try { localStorage.setIt
 llmModel.addEventListener('change', () => { try { localStorage.setItem('glts-llm', llmModel.value); } catch {} });
 const modelStatus = document.querySelector('#local-model-status');
 const downloadStatus = document.querySelector('#local-download-status');
-const speechInstall = document.querySelector('#install-speech');
 const llmInstall = document.querySelector('#install-llm');
 let modelPoll;
 async function checkLocalModels() {
@@ -194,8 +193,6 @@ async function checkLocalModels() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not check models.');
     const downloading = data.job.state === 'running';
-    speechInstall.disabled = data.speech_installed || downloading;
-    speechInstall.textContent = data.speech_installed ? 'Speech pack installed' : 'Download Sana’ani speech pack';
     llmInstall.disabled = downloading || !data.ollama_connected;
     modelStatus.textContent = data.ollama_connected ? `Ollama connected. Installed language models: ${data.installed_models.join(', ') || 'none'}.` : 'Ollama is not running. Install/start Ollama, then click Check models.';
     downloadStatus.textContent = data.job.message;
@@ -203,7 +200,7 @@ async function checkLocalModels() {
   } catch (error) { modelStatus.textContent = error.message; }
 }
 async function installLocalModel(body) {
-  speechInstall.disabled = llmInstall.disabled = true;
+  llmInstall.disabled = true;
   downloadStatus.textContent = 'Starting model download…';
   try {
     const response = await fetch('/api/local-models/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -215,10 +212,6 @@ async function installLocalModel(body) {
     downloadStatus.textContent = error.message;
   }
 }
-speechInstall.addEventListener('click', () => {
-  if (!document.querySelector('#speech-license').checked) { downloadStatus.textContent = 'Read and accept the noncommercial license before downloading.'; return; }
-  installLocalModel({ kind: 'speech', accept_license: true });
-});
 llmInstall.addEventListener('click', () => installLocalModel({ kind: 'llm', model: document.querySelector('#download-llm').value }));
 document.querySelector('#refresh-models').addEventListener('click', checkLocalModels);
 
@@ -306,7 +299,7 @@ taskMode.addEventListener('change', () => {
   output.setAttribute('aria-label', transcribing ? 'Transcript' : 'Translated text');
   output.placeholder = transcribing ? 'Your original-language transcript will appear here.' : 'A new language. The same meaning.';
   document.querySelector('#task-hint').textContent = transcribing ? 'Upload audio to get its original-language transcript. No translation pack or Ollama is required.' : 'Translate text, documents, or audio into another language.';
-  document.querySelector('#dialect-note').textContent = transcribing ? 'Choose the spoken language. Sana’ani uses the optional Yemeni speech model. Auto-detect lets you review the source first.' : 'Sana’ani audio uses the optional Yemeni speech pack. Select the local language model for written dialect translation. Accuracy needs review.';
+  document.querySelector('#dialect-note').textContent = transcribing ? 'Choose the spoken language. Audio uses standard Whisper; Sana’ani is treated as Arabic. Auto-detect lets you review the source first.' : 'Audio uses standard Whisper. Select the local language model for Sana’ani text or transcript translation. Accuracy needs review.';
   output.value = '';
   document.querySelector('#source').textContent = '';
   document.querySelector('#source-details').hidden = true;

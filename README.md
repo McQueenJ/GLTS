@@ -47,11 +47,9 @@ Choose **Sana’ani Arabic (Yemen)** as the source language.
 
 ### Audio
 
-In Settings, accept the **CC BY-NC-SA 4.0** noncommercial model license and click **Download Sana’ani speech pack**. Keep GLTS running during preparation. The optional [Yemeni speech model by Mansoor Saleh](https://huggingface.co/mansoorSaleh/whisper-yemeni) covers several Yemeni dialects including Sana’ani. GLTS pins its revision, downloads safetensors (about 1 GB), converts locally to int8, and retains its attribution/model card in `models/whisper-yemeni`. Allow at least 4 GB free disk for preparation. It operates offline after installation, on CPU or CUDA.
+All audio is transcribed with the standard local Whisper model. Selecting Sana’ani uses Arabic transcription; there is no dedicated dialect speech pack or speech-pack download. For dialect-sensitive translation of the transcript, select **Local language model (Ollama)**.
 
-The provider's model card and published model configuration disagree about the base-model size. Treat it as experimental; provider accuracy claims have not been independently verified. This implementation has been checked for model conversion, local loading and offline inference, not Sana’ani transcription accuracy on real recordings.
-
-The speech pack transcribes audio, not written text. With **Standard language packs**, its Arabic transcript is translated using your Arabic → English pack. For dialect-sensitive translation of the transcript, select **Local language model (Ollama)**.
+If updating from an earlier version, previously downloaded `models/whisper-yemeni` files are not used or deleted automatically. You may remove that folder to reclaim disk space. The old `prepare_sanaani.py` and `speech_packs.py` source files can also be removed from an existing installation; they are no longer included in the current source package. Keep `models/whisper-tiny` for normal transcription.
 
 ### Written text and transcripts
 
@@ -71,14 +69,14 @@ Stop GLTS and copy the latest source files from GitHub into your existing folder
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-This installs the conversion dependency for the optional speech pack. Restart GLTS and press Ctrl+F5 in the browser. Model downloads run in the background, and Settings reports completion or errors. If speech preparation fails, see `.local/sanaani-install.log`.
+Restart GLTS and press Ctrl+F5 in the browser. Ollama model downloads run in the background, and Settings reports completion or errors.
 
 ## Experimental source auto-detection
 
 Manual source selection remains the default. Choose **Auto-detect (experimental)** and click Translate. GLTS detects the language, displays a text/transcript preview and a review panel, and stops before translation. Correct the suggested source if necessary, click **Confirm source language**, then click Translate again.
 
 - Text and selectable-text PDFs use a locally bundled `langid` detector. Very short input is rejected; short or mixed-language passages may be misidentified.
-- Audio uses Whisper's language identification. After confirmation, the audio is transcribed again using your chosen source model; selecting Sana’ani uses the optional Yemeni model.
+- Audio uses Whisper's language identification. After confirmation, the audio is transcribed again using standard Whisper; selecting Sana’ani uses Arabic transcription.
 - Arabic input can optionally be checked by your installed Qwen model for a Sana’ani suggestion. This is an unverified text-based guess, including for an audio transcript, not a validated acoustic dialect classifier. Unknown/other results keep standard Arabic. If Ollama is missing, ordinary language detection still works.
 - A detected language may need an additional translation pack or the local language-model engine. Sana’ani written translation still requires the local language model.
 - Detection does not fetch models or send content outside your computer. Install dependencies before use with `.venv\Scripts\python.exe -m pip install -r requirements.txt` on Windows.
@@ -97,7 +95,7 @@ When updating, copy the new `pdf_export.py` and `assets` folder along with the o
 
 Choose **Transcribe audio only** in the Task selector. Upload an audio file (including OPUS), choose the spoken language, and click **Transcribe**. The original-language transcript appears in the output panel; use Copy text, Save note (.txt) or Save PDF to retain it. Transcript filenames are `glts-transcript.txt` and `glts-transcript.pdf`.
 
-Transcription uses the installed local Whisper model. Choosing Sana’ani uses the optional Yemeni speech model. It needs no Argos translation pack or Ollama model. Auto-detect still supports the source-review step; optional dialect suggestions in that step use Ollama if enabled. Transcript accuracy depends on the recording and model, so review it before use. Switching back to Translate restores translation controls and clears the displayed result; your input/file remains selected.
+Transcription uses the installed local Whisper model. Choosing Sana’ani uses standard Arabic transcription. It needs no Argos translation pack or Ollama model. Auto-detect still supports the source-review step; optional dialect suggestions in that step use Ollama if enabled. Transcript accuracy depends on the recording and model, so review it before use. Switching back to Translate restores translation controls and clears the displayed result; your input/file remains selected.
 
 ## Limits
 

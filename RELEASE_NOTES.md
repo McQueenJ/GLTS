@@ -1,3 +1,15 @@
+# Global Language Translation Service (GLTS) v0.1.2
+
+Removes the optional Sana’ani/Yemeni speech pack, download controls, installer, runtime selection, and its Transformers conversion dependency. All audio now uses standard Whisper. Sana’ani text and transcript translation through Ollama, experimental dialect suggestions, and transcription-only mode remain available.
+
+Validated with 45 passing automated tests (one Arabic-pack test skipped), including actual standard Whisper inference with network connections blocked. Browser checks confirmed removal of speech-pack controls, functioning Ollama Settings and the transcription task; the browser transcription response was mocked.
+
+Update source files while preserving `.venv`, `.local`, and `models`. Include all new source/assets, then restart GLTS and refresh with Ctrl+F5. The old `prepare_sanaani.py` and `speech_packs.py` files are retired and may be removed from an existing installation. Previously downloaded `models/whisper-yemeni` files are not used and may be deleted manually to reclaim space. Keep `models/whisper-tiny` for normal transcription. No new dependencies are needed, and existing installed Transformers libraries do not need to be uninstalled.
+
+Earlier release notes below describe historical behavior, not the current release.
+
+---
+
 # Global Language Translation Service (GLTS) v0.1.1
 
 Adds a **Transcribe audio only** task. Original-language transcripts can be copied or saved as UTF-8 notes or PDF files, without invoking a translation engine. It uses the existing Whisper model and optional Sana’ani/Yemeni speech pack. Translation remains the default task.
