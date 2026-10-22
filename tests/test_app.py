@@ -477,3 +477,32 @@ def test_speech_pack_controls_removed(client):
     assert 'speech-license' not in page
     assert 'Sana’ani Arabic (Yemen)' in page
     assert 'standard Whisper' in page
+
+
+def test_research_only_qwen_model_rejected(client, monkeypatch):
+    import local_models
+    import detection
+    assert 'qwen2.5:3b' not in local_models.MODELS
+    monkeypatch.setattr(local_models, 'ollama_request', lambda *args, **kwargs: {'models': [{'name': 'qwen2.5:3b'}, {'name': 'qwen2.5:7b'}, {'name': 'qwen2.5:14b'}]})
+    assert local_models.installed_models() == ['qwen2.5:7b', 'qwen2.5:14b']
+    response = client.post('/api/local-models/install', json={'kind': 'llm', 'model': 'qwen2.5:3b'})
+    assert response.status_code == 400
+    with pytest.raises(ValueError, match='supported'):
+        local_models.translate_local('مرحبا', 'ar-sanaa', 'English', 'qwen2.5:3b')
+    with pytest.raises(ValueError):
+        detection.suggest_dialect('مرحبا', 'qwen2.5:3b')
+    page = client.get('/').get_data(as_text=True)
+    assert 'qwen2.5:3b' not in page
+
+
+def test_argos_adapter_uses_local_splitter(monkeypatch, tmp_path):
+    from argos_runtime import initialize_argos, LocalSentenceSplitter
+    module = initialize_argos()
+    def denied(*args, **kwargs):
+        raise AssertionError('Network attempted in Argos adapter')
+    monkeypatch.setattr(socket.socket, 'connect', denied)
+    package = SimpleNamespace(package_path=tmp_path, target_prefix='', tokenizer=SimpleNamespace(encode=lambda text: text.split(), decode=lambda tokens: ' '.join(tokens)))
+    translation = module.PackageTranslation(module.Language('ar', 'Arabic'), module.Language('en', 'English'), package)
+    assert isinstance(translation.sentencizer, LocalSentenceSplitter)
+    translation.translator = SimpleNamespace(translate_batch=lambda tokenized, **kwargs: [SimpleNamespace(hypotheses=[['Hello']], scores=[0.0]) for _ in tokenized])
+    assert translation.translate('مرحبا.') == 'Hello'

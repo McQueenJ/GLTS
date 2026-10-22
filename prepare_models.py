@@ -15,6 +15,8 @@ def main():
     parser.add_argument('--languages', nargs='+', default=['en', 'es', 'ar'])
     parser.add_argument('--skip-audio', action='store_true')
     args = parser.parse_args()
+    from argos_runtime import initialize_argos
+    initialize_argos()
     import argostranslate.package as package
     installed = {(p.from_code, p.to_code) for p in package.get_installed_packages()}
     package.update_package_index()

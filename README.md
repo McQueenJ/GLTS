@@ -48,7 +48,7 @@ Choose **Sana’ani Arabic (Yemen)** as the source language.
 ### Written text and transcripts
 
 1. Install [Ollama for Windows](https://ollama.com/download/windows) and keep it running locally.
-2. In GLTS Settings, click **Check models**, then download **Qwen2.5 7B** (about 5 GB). With 16 GB RAM or more, this is the recommended starting option. **Qwen2.5 3B** (about 2 GB) is a lighter alternative. **Qwen2.5 14B** (about 9 GB) is also available for comparison; 32 GB RAM is recommended for comfortable use. It may be slow with 16 GB, especially alongside speech recognition. Select 14B both in the Settings download menu and in the main translation model selector. It also works with optional dialect suggestions. A larger model does not guarantee better Sana’ani translations, and 14B translation quality has not been verified here.
+2. In GLTS Settings, click **Check models**, then download **Qwen2.5 7B** (about 5 GB). With 16 GB RAM or more, this is the recommended starting option. **Qwen2.5 14B** (about 9 GB) is also available for comparison; 32 GB RAM is recommended for comfortable use. It may be slow with 16 GB, especially alongside speech recognition. Select 14B both in the Settings download menu and in the main translation model selector. It also works with optional dialect suggestions. A larger model does not guarantee better Sana’ani translations, and 14B translation quality has not been verified here.
 3. Select **Local language model (Ollama)** as the translation engine, choose the installed model, and translate Sana’ani text, TXT/PDF documents, or an audio transcript.
 
 GLTS communicates only with Ollama at `127.0.0.1:11434`, with proxy use disabled for this connection. Model downloads need internet, but translation stays local and requires no API key. Ollama chooses its own CPU/GPU resources; the GLTS CPU/CUDA setting controls Argos and speech inference. Make sure the selected model is installed before disconnecting. Translations of long documents are split into bounded chunks; context across chunks may be imperfect.
@@ -113,3 +113,11 @@ Tests cover GUI rendering, upload handling, validation, transcription integratio
 If the launch window shows `ModuleNotFoundError`, stop GLTS and open PowerShell in the same folder as `launch-windows.cmd`. Run `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`, then restart. For example, `pycountry` is required by language validation and experimental source detection; copying updated source files alone does not install it. This error occurs before the translation model is called and is unrelated to CUDA.
 
 Ollama errors are reported separately, including model-loading or memory errors. Check `ollama list` for installed models and `ollama ps` for running models. If 14B cannot fit in memory, try 7B.
+
+## License and third-party components
+
+GLTS's original code and documentation are MIT-licensed; see [LICENSE](LICENSE). Dependencies, fonts, models, and optional GPU libraries retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [the dependency inventory](licenses/DEPENDENCIES.md), and the bundled notice files.
+
+Qwen2.5 3B is no longer supported because its research license differs from the Apache 2.0 licenses of 7B and 14B. Argos downloads remain available. Argos software is MIT-licensed, but per-package model-weight terms have not been verified here. Optional CUDA components have NVIDIA terms. Do not describe the whole stack as license-free.
+
+When updating, install `requirements.txt` again; it pins Argos 1.10.0 to avoid MiniSBD's AGPL dependency. The `argos_runtime.py` adapter preserves local sentence splitting without runtime model downloads. Existing installed models and personal files are not removed. The license inventory can be regenerated in the tested environment with `.venv/bin/python scripts/audit_licenses.py` (or `.\.venv\Scripts\python.exe scripts\audit_licenses.py` on Windows).

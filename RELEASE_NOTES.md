@@ -1,3 +1,18 @@
+# Global Language Translation Service (GLTS) v0.1.3
+
+- Adds an MIT license for original GLTS source, third-party notices, retained dependency/model license texts, and an inventory of 83 dependencies from the tested environment.
+- Removes Qwen2.5 3B from downloads, translation, dialect suggestions and saved model selection. Qwen2.5 7B/14B remain available.
+- Pins MIT-licensed Argos 1.10.0 and adds a local sentence-splitter adapter to avoid MiniSBD, an AGPL dependency of Argos 1.11. Standard Argos downloads and existing installed language packs remain available.
+- Documents LGPL/native-binary obligations, optional NVIDIA terms, and the unresolved per-Argos-model license verification. This is not a blanket clearance of every dependency, model or deployment.
+
+**Updating Windows:** Stop GLTS, copy all updated source files including `argos_runtime.py`, LICENSE, THIRD_PARTY_NOTICES.md and licenses/, and preserve `.venv`, `.local`, and `models`. From the GLTS folder run `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`, then restart and refresh with Ctrl+F5. This dependency refresh is required. An unused old MiniSBD package or Qwen 3B model is not automatically deleted.
+
+Validation: 47 tests passed; one real Argos-model test skipped because the cloud cannot download that model. The Argos inherited translation pipeline was exercised with a stub inference backend, and startup/enumeration was verified with network connections blocked and MiniSBD absent. Browser checks covered model selection and retained Argos download controls. Windows wheel licensing and real Qwen translation quality were not independently validated. Read THIRD_PARTY_NOTICES.md before redistributing dependencies or model weights.
+
+Earlier release notes describe historical behavior.
+
+---
+
 # Global Language Translation Service (GLTS) v0.1.2
 
 Removes the optional Sana’ani/Yemeni speech pack, download controls, installer, runtime selection, and its Transformers conversion dependency. All audio now uses standard Whisper. Sana’ani text and transcript translation through Ollama, experimental dialect suggestions, and transcription-only mode remain available.

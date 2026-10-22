@@ -177,7 +177,7 @@ function showEngine() { document.querySelector('#llm-options').hidden = engine.v
 try {
   if (localStorage.getItem('glts-engine') === 'ollama') engine.value = 'ollama';
   const previousModel = localStorage.getItem('glts-llm');
-  if (['qwen2.5:3b', 'qwen2.5:7b', 'qwen2.5:14b'].includes(previousModel)) llmModel.value = previousModel;
+  if (['qwen2.5:7b', 'qwen2.5:14b'].includes(previousModel)) llmModel.value = previousModel;
 } catch {}
 showEngine();
 engine.addEventListener('change', () => { showEngine(); try { localStorage.setItem('glts-engine', engine.value); } catch {} });

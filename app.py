@@ -1,7 +1,6 @@
 import io
 import json
 import os
-import re
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock, RLock, Thread
@@ -10,7 +9,6 @@ ROOT = Path(__file__).resolve().parent
 os.environ.setdefault('XDG_DATA_HOME', str(ROOT / '.local/share'))
 os.environ.setdefault('XDG_CACHE_HOME', str(ROOT / '.local/cache'))
 os.environ.setdefault('XDG_CONFIG_HOME', str(ROOT / '.local/config'))
-os.environ.setdefault('ARGOS_CHUNK_TYPE', 'MINISBD')
 os.environ.setdefault('HF_HUB_OFFLINE', '1')
 os.environ['ARGOS_MODEL_PROVIDER'] = 'OPENNMT'
 
@@ -18,6 +16,9 @@ from flask import Flask, jsonify, render_template, request, send_file
 from pypdf import PdfReader
 from local_models import MODELS, installed_models, ollama_request, translate_local
 from detection import detect_text, language_name, suggest_dialect
+from argos_runtime import LocalSentenceSplitter, initialize_argos
+
+initialize_argos()
 
 app = Flask(__name__)
 SETTINGS_PATH = ROOT / '.local/settings.json'
@@ -57,8 +58,7 @@ AUDIO = {'.mp3', '.wav', '.m4a', '.mp4', '.mpeg', '.mpga', '.webm', '.opus'}
 
 
 def languages():
-    import argostranslate.translate
-    return argostranslate.translate.get_installed_languages()
+    return initialize_argos().get_installed_languages()
 
 
 def speech_model():
@@ -109,12 +109,6 @@ def transcribe_audio(data, source):
         raise
     except Exception:
         raise ValueError('Audio could not be transcribed. Check the file and local speech model. In CUDA mode, verify CUDA 12 and cuDNN 9 are installed, or switch to CPU in Settings.')
-
-
-class LocalSentenceSplitter:
-    """No downloadable sentence-boundary model is needed at runtime."""
-    def split_sentences(self, text):
-        return [part for part in re.split(r'(?<=[.!?؟。！])\s+', text) if part.strip()]
 
 
 def use_local_splitter(translation, mode):

@@ -1,6 +1,6 @@
 Flask==3.1.3
 pypdf==6.20.1
-argostranslate==1.11.0
+argostranslate==1.10.0
 faster-whisper==1.2.1
 pytest==9.1.1
 av==15.1.0
