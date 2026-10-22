@@ -41,10 +41,6 @@ Click **Settings** in the GUI:
 
 Stop GLTS, download the latest GitHub ZIP, and copy its source files into your existing GLTS folder. Keep `.venv`, `.local`, and `models` so your dependencies, settings, and language packs are retained. Launch GLTS again and refresh the browser (Ctrl+F5).
 
-## Sana’ani Arabic and local language models
-
-Choose **Sana’ani Arabic (Yemen)** as the source language.
-
 ### Written text and transcripts
 
 1. Install [Ollama for Windows](https://ollama.com/download/windows) and keep it running locally.
